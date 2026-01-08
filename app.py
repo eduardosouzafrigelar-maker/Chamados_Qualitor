@@ -8,7 +8,7 @@ import pytz
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Distribuidor Qualitor", page_icon="🎫")
 
-# --- CONEXÃO COM CACHE DE RECURSO ---
+# --- CONEXÃO INTELIGENTE (CACHE DE RECURSO) ---
 @st.cache_resource
 def conectar_google_sheets():
     try:
@@ -25,12 +25,13 @@ def conectar_google_sheets():
         st.error("Erro na conexão! Verifique os Segredos ou o arquivo JSON.")
         st.stop()
 
-# --- LEITURA INTELIGENTE (ANTI-ERRO 429) ---
+# --- LEITURA INTELIGENTE (CACHE DE DADOS - ANTI-ERRO 429) ---
 @st.cache_data(ttl=5)
 def carregar_dados_planilha():
     sh = conectar_google_sheets()
     try:
-        aba = sh.worksheet("Chamados")
+        # Pega a PRIMEIRA aba (Índice 0) independente do nome
+        aba = sh.get_worksheet(0)
         dados = aba.get_all_records()
         return pd.DataFrame(dados)
     except Exception as e:
@@ -40,10 +41,14 @@ def carregar_dados_planilha():
 sh = conectar_google_sheets()
 
 try:
-    aba_chamados = sh.worksheet("Chamados")
-    aba_users = sh.worksheet("Colaboradores")
-except Exception as e:
-    st.error(f"Erro: Não encontrei as abas. Detalhe: {e}")
+    # PEGA PELO ÍNDICE (POSIÇÃO) PARA EVITAR ERRO DE NOME
+    # 0 = A primeira aba (esquerda) -> Chamados
+    # 1 = A segunda aba -> Colaboradores
+    aba_chamados = sh.get_worksheet(0)
+    aba_users = sh.get_worksheet(1)
+except:
+    st.error("❌ Erro grave: A planilha precisa ter pelo menos 2 abas!")
+    st.info("O sistema tenta pegar a 1ª aba para Chamados e a 2ª para Colaboradores.")
     st.stop()
 
 # --- FUNÇÃO PARA PEGAR HORA CERTA (BRASIL) ---
@@ -98,7 +103,7 @@ else:
             (df['Responsavel'] == usuario)
         ]
     else:
-        st.error("Colunas 'Status' ou 'Responsavel' não encontradas.")
+        st.error("Erro: As colunas 'Status' ou 'Responsavel' sumiram da 1ª aba.")
         st.stop()
 
     # --- CENÁRIO A: TEM CHAMADO ABERTO ---
@@ -186,3 +191,4 @@ else:
             if st.button("🔄 Verificar Fila"):
                 st.cache_data.clear()
                 st.rerun()
+
