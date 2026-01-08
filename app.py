@@ -8,7 +8,7 @@ import pytz
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Distribuidor Qualitor", page_icon="🎫")
 
-# --- CONEXÃO INTELIGENTE ---
+# --- CONEXÃO BÁSICA ---
 @st.cache_resource
 def conectar_google_sheets():
     try:
@@ -17,53 +17,62 @@ def conectar_google_sheets():
             client = gspread.service_account_from_dict(creds_dict)
         else:
             client = gspread.service_account(filename="credentials.json")
-
-        # ATENÇÃO: Conecta na planilha do SEGUNDO sistema
-        sheet = client.open("Chamados_Qualitor")
-        return sheet
+        
+        return client.open("Chamados_Qualitor")
     except Exception as e:
         return None
 
-# --- FUNÇÃO PARA PEGAR HORA CERTA (BRASIL) ---
+# --- FUNÇÃO HORA BRASIL ---
 def hora_brasil():
     fuso = pytz.timezone('America/Sao_Paulo')
     return datetime.now(fuso).strftime("%d/%m/%Y %H:%M:%S")
 
-# --- ROBÔ TEIMOSO (TENTA CARREGAR AS ABAS 5 VEZES) ---
+# --- O ROBÔ ZEN (CARREGAMENTO DAS ABAS) ---
 sh = conectar_google_sheets()
 aba_chamados = None
 aba_users = None
+erro_real = ""
 
 if sh is None:
-    st.error("Erro na conexão com o Google Sheets. Verifique o arquivo JSON ou a internet.")
+    st.error("Erro total: Não consegui nem abrir a planilha.")
     st.stop()
 
-# Loop da Teimosia: Tenta 5 vezes antes de desistir
-for tentativa in range(5):
+# Tenta 10 vezes (paciência total de ~40 segundos)
+for tentativa in range(10):
     try:
-        # Pega pela POSIÇÃO (0=Primeira, 1=Segunda)
-        aba_chamados = sh.get_worksheet(0)
-        aba_users = sh.get_worksheet(1)
+        # Usa .worksheets() que é mais estável que .get_worksheet()
+        todas_abas = sh.worksheets()
         
-        # Se conseguiu pegar as duas, sai do loop
-        if aba_chamados and aba_users:
-            break
-    except:
-        # Se falhou, espera 1 segundo e tenta de novo
-        time.sleep(1)
+        if len(todas_abas) >= 2:
+            aba_chamados = todas_abas[0] # Pega a 1ª
+            aba_users = todas_abas[1]    # Pega a 2ª
+            break # Sucesso! Sai do loop
+        else:
+            erro_real = "A planilha tem menos de 2 abas visíveis."
+            
+    except Exception as e:
+        erro_real = str(e)
+        # Espera progressiva: 2s, 3s, 4s... para dar tempo ao Google
+        time.sleep(2 + tentativa) 
 
-# Se depois de 5 tentativas ainda estiver vazio, aí sim mostra erro
+# SE FALHOU TUDO: Mostra o erro real para consertarmos
 if aba_chamados is None or aba_users is None:
-    st.error("❌ O sistema tentou conectar 5 vezes e falhou.")
-    st.warning("O Google Sheets está lento ou a planilha não tem 2 abas.")
-    st.info("Aguarde um momento e atualize a página (F5).")
+    st.error("❌ O Robô desistiu depois de 10 tentativas.")
+    st.warning(f"O motivo exato do erro foi: {erro_real}")
+    
+    if "429" in erro_real:
+        st.info("Isso é bloqueio de velocidade do Google. Espere 1 minuto.")
+    elif "API key not valid" in erro_real:
+        st.info("Verifique suas credenciais.")
+    
+    if st.button("Tentar conectar novamente agora"):
+        st.rerun()
     st.stop()
 
-# --- LEITURA DE DADOS COM CACHE ---
-@st.cache_data(ttl=5)
+# --- CACHE DE DADOS ---
+@st.cache_data(ttl=10) # Aumentei o cache para 10s para evitar bater no Google toda hora
 def carregar_dados_planilha():
     try:
-        # Pega direto da aba que já validamos lá em cima
         dados = aba_chamados.get_all_records()
         return pd.DataFrame(dados)
     except:
@@ -72,7 +81,6 @@ def carregar_dados_planilha():
 # --- TELA DE LOGIN ---
 if 'usuario' not in st.session_state:
     st.title("🎫 Login - Qualitor")
-    
     try:
         lista_nomes = aba_users.col_values(1)[1:] 
     except:
@@ -85,7 +93,7 @@ if 'usuario' not in st.session_state:
             st.session_state['usuario'] = escolha
             st.rerun()
         else:
-            st.warning("Por favor, selecione um nome.")
+            st.warning("Selecione um nome.")
 
 # --- TELA PRINCIPAL ---
 else:
@@ -100,12 +108,11 @@ else:
     st.title(f"Olá, {usuario} 👋")
     st.divider()
 
-    # USANDO O CACHE PARA LER DADOS
     df = carregar_dados_planilha()
 
     if df.empty:
-        st.warning("Carregando dados... Se demorar, clique abaixo.")
-        if st.button("🔄 Forçar Atualização"):
+        st.warning("Carregando dados... Se travar, clique no botão abaixo.")
+        if st.button("🔄 Forçar Recarregamento"):
             st.cache_data.clear()
             st.rerun()
         st.stop()
@@ -116,91 +123,89 @@ else:
             (df['Responsavel'] == usuario)
         ]
     else:
-        st.error("Erro: As colunas 'Status' ou 'Responsavel' sumiram da 1ª aba.")
+        st.error("Erro: Colunas 'Status' ou 'Responsavel' não encontradas.")
         st.stop()
 
-    # --- CENÁRIO A: TEM CHAMADO ABERTO ---
+    # --- CENÁRIO A: TEM CHAMADO ---
     if not meu_chamado.empty:
         dados = meu_chamado.iloc[0]
         numero_chamado = dados.get('Dados', 'N/A') 
         id_linha = dados.get('ID')
         
-        st.info(f"Você tem um atendimento pendente: **{numero_chamado}**")
+        st.info(f"Pendência: **{numero_chamado}**")
         
         col1, col2 = st.columns([3, 1])
         with col1:
             if numero_chamado != 'N/A':
-                link_qualitor = f"https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado={numero_chamado}"
-                st.link_button("🔗 ABRIR NO QUALITOR", link_qualitor)
+                link = f"https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado={numero_chamado}"
+                st.link_button("🔗 ABRIR QUALITOR", link)
         
         st.write("---")
         
-        if st.button("✅ FINALIZAR ATENDIMENTO", type="primary"):
-            with st.spinner("Finalizando..."):
-                try:
-                    # Limpa cache antes de escrever
-                    st.cache_data.clear()
-                    
-                    cell = aba_chamados.find(str(id_linha))
-                    numero_da_linha = cell.row
-                    agora = hora_brasil()
-                    
-                    aba_chamados.update_cell(numero_da_linha, 3, "Concluido")
-                    aba_chamados.update_cell(numero_da_linha, 6, agora)
-                    
-                    st.success("Chamado finalizado!")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao finalizar: {e}")
+        if st.button("✅ FINALIZAR", type="primary"):
+            try:
+                st.cache_data.clear()
+                
+                cell = aba_chamados.find(str(id_linha))
+                linha = cell.row
+                agora = hora_brasil()
+                
+                aba_chamados.update_cell(linha, 3, "Concluido")
+                aba_chamados.update_cell(linha, 6, agora)
+                
+                st.success("Feito!")
+                time.sleep(1)
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao finalizar: {e}")
 
-    # --- CENÁRIO B: ESTÁ LIVRE ---
+    # --- CENÁRIO B: LIVRE ---
     else:
         pendentes = df[df['Status'] == 'Pendente']
-        qtd_pendentes = len(pendentes)
+        qtd = len(pendentes)
 
-        st.write("Você está livre.")
-        st.metric("Chamados na Fila", qtd_pendentes)
+        st.metric("Fila", qtd)
 
-        if qtd_pendentes > 0:
-            if st.button("📥 PEGAR PRÓXIMO CHAMADO"):
-                with st.spinner("Buscando chamado..."):
-                    st.cache_data.clear()
+        if qtd > 0:
+            if st.button("📥 PEGAR PRÓXIMO"):
+                # Limpa cache IMEDIATAMENTE antes de tentar pegar
+                st.cache_data.clear()
+                
+                try:
+                    # Busca manual para garantir que ninguém pegou
+                    # (Não usamos a função com cache aqui propositalmente)
+                    dados_reais = aba_chamados.get_all_records()
+                    df_novo = pd.DataFrame(dados_reais)
                     
-                    # Busca direto da fonte para não ter conflito
-                    dados_frescos = aba_chamados.get_all_records()
-                    df_novo = pd.DataFrame(dados_frescos)
-                    
-                    fila_real = df_novo[
+                    fila = df_novo[
                         (df_novo['Status'] == 'Pendente') & 
                         (df_novo['Responsavel'] == "")
                     ]
                     
-                    if not fila_real.empty:
-                        primeiro_livre = fila_real.iloc[0]
-                        id_do_chamado = primeiro_livre['ID']
+                    if not fila.empty:
+                        primeiro = fila.iloc[0]
+                        id_chamado = primeiro['ID']
                         
-                        try:
-                            cell = aba_chamados.find(str(id_do_chamado))
-                            linha_para_editar = cell.row
-                            agora = hora_brasil()
-                            
-                            aba_chamados.update_cell(linha_para_editar, 3, "Em Andamento")
-                            aba_chamados.update_cell(linha_para_editar, 4, usuario)
-                            aba_chamados.update_cell(linha_para_editar, 5, agora)
-                            
-                            st.toast("Chamado atribuído com sucesso!")
-                            time.sleep(1)
-                            st.rerun()
-                        except Exception as e:
-                             st.error(f"Erro ao pegar chamado: {e}")
+                        cell = aba_chamados.find(str(id_chamado))
+                        linha = cell.row
+                        agora = hora_brasil()
+                        
+                        aba_chamados.update_cell(linha, 3, "Em Andamento")
+                        aba_chamados.update_cell(linha, 4, usuario)
+                        aba_chamados.update_cell(linha, 5, agora)
+                        
+                        st.toast("Chamado atribuído!")
+                        time.sleep(1)
+                        st.rerun()
                     else:
-                        st.warning("Alguém pegou antes de você.")
+                        st.warning("Alguém pegou antes!")
                         time.sleep(2)
                         st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao pegar: {e}")
         else:
-            st.success("Fila zerada! Aguarde novos chamados.")
-            if st.button("🔄 Verificar Fila"):
+            st.success("Fila zerada!")
+            if st.button("🔄 Verificar"):
                 st.cache_data.clear()
                 st.rerun()
 
