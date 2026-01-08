@@ -8,7 +8,7 @@ import pytz
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Distribuidor Qualitor", page_icon="🎫")
 
-# --- CONEXÃO INTELIGENTE (CACHE DE RECURSO) ---
+# --- CONEXÃO INTELIGENTE ---
 @st.cache_resource
 def conectar_google_sheets():
     try:
@@ -18,43 +18,56 @@ def conectar_google_sheets():
         else:
             client = gspread.service_account(filename="credentials.json")
 
-        # Conecta na planilha do SEGUNDO sistema
+        # ATENÇÃO: Conecta na planilha do SEGUNDO sistema
         sheet = client.open("Chamados_Qualitor")
         return sheet
     except Exception as e:
-        st.error("Erro na conexão! Verifique os Segredos ou o arquivo JSON.")
-        st.stop()
-
-# --- LEITURA INTELIGENTE (CACHE DE DADOS - ANTI-ERRO 429) ---
-@st.cache_data(ttl=5)
-def carregar_dados_planilha():
-    sh = conectar_google_sheets()
-    try:
-        # Pega a PRIMEIRA aba (Índice 0) independente do nome
-        aba = sh.get_worksheet(0)
-        dados = aba.get_all_records()
-        return pd.DataFrame(dados)
-    except Exception as e:
-        return pd.DataFrame()
-
-# Carrega a conexão principal
-sh = conectar_google_sheets()
-
-try:
-    # PEGA PELO ÍNDICE (POSIÇÃO) PARA EVITAR ERRO DE NOME
-    # 0 = A primeira aba (esquerda) -> Chamados
-    # 1 = A segunda aba -> Colaboradores
-    aba_chamados = sh.get_worksheet(0)
-    aba_users = sh.get_worksheet(1)
-except:
-    st.error("❌ Erro grave: A planilha precisa ter pelo menos 2 abas!")
-    st.info("O sistema tenta pegar a 1ª aba para Chamados e a 2ª para Colaboradores.")
-    st.stop()
+        return None
 
 # --- FUNÇÃO PARA PEGAR HORA CERTA (BRASIL) ---
 def hora_brasil():
     fuso = pytz.timezone('America/Sao_Paulo')
     return datetime.now(fuso).strftime("%d/%m/%Y %H:%M:%S")
+
+# --- ROBÔ TEIMOSO (TENTA CARREGAR AS ABAS 5 VEZES) ---
+sh = conectar_google_sheets()
+aba_chamados = None
+aba_users = None
+
+if sh is None:
+    st.error("Erro na conexão com o Google Sheets. Verifique o arquivo JSON ou a internet.")
+    st.stop()
+
+# Loop da Teimosia: Tenta 5 vezes antes de desistir
+for tentativa in range(5):
+    try:
+        # Pega pela POSIÇÃO (0=Primeira, 1=Segunda)
+        aba_chamados = sh.get_worksheet(0)
+        aba_users = sh.get_worksheet(1)
+        
+        # Se conseguiu pegar as duas, sai do loop
+        if aba_chamados and aba_users:
+            break
+    except:
+        # Se falhou, espera 1 segundo e tenta de novo
+        time.sleep(1)
+
+# Se depois de 5 tentativas ainda estiver vazio, aí sim mostra erro
+if aba_chamados is None or aba_users is None:
+    st.error("❌ O sistema tentou conectar 5 vezes e falhou.")
+    st.warning("O Google Sheets está lento ou a planilha não tem 2 abas.")
+    st.info("Aguarde um momento e atualize a página (F5).")
+    st.stop()
+
+# --- LEITURA DE DADOS COM CACHE ---
+@st.cache_data(ttl=5)
+def carregar_dados_planilha():
+    try:
+        # Pega direto da aba que já validamos lá em cima
+        dados = aba_chamados.get_all_records()
+        return pd.DataFrame(dados)
+    except:
+        return pd.DataFrame()
 
 # --- TELA DE LOGIN ---
 if 'usuario' not in st.session_state:
@@ -152,7 +165,6 @@ else:
         if qtd_pendentes > 0:
             if st.button("📥 PEGAR PRÓXIMO CHAMADO"):
                 with st.spinner("Buscando chamado..."):
-                    # Limpa cache para garantir dados frescos
                     st.cache_data.clear()
                     
                     # Busca direto da fonte para não ter conflito
@@ -191,4 +203,5 @@ else:
             if st.button("🔄 Verificar Fila"):
                 st.cache_data.clear()
                 st.rerun()
+
 
