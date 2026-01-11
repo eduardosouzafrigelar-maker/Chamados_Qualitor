@@ -40,37 +40,29 @@ if sh is None:
 # Tenta 10 vezes (paciência total de ~40 segundos)
 for tentativa in range(10):
     try:
-        # Usa .worksheets() que é mais estável que .get_worksheet()
         todas_abas = sh.worksheets()
         
         if len(todas_abas) >= 2:
             aba_chamados = todas_abas[0] # Pega a 1ª
             aba_users = todas_abas[1]    # Pega a 2ª
-            break # Sucesso! Sai do loop
+            break 
         else:
             erro_real = "A planilha tem menos de 2 abas visíveis."
             
     except Exception as e:
         erro_real = str(e)
-        # Espera progressiva: 2s, 3s, 4s... para dar tempo ao Google
         time.sleep(2 + tentativa) 
 
-# SE FALHOU TUDO: Mostra o erro real para consertarmos
+# SE FALHOU TUDO
 if aba_chamados is None or aba_users is None:
     st.error("❌ O Robô desistiu depois de 10 tentativas.")
-    st.warning(f"O motivo exato do erro foi: {erro_real}")
-    
-    if "429" in erro_real:
-        st.info("Isso é bloqueio de velocidade do Google. Espere 1 minuto.")
-    elif "API key not valid" in erro_real:
-        st.info("Verifique suas credenciais.")
-    
+    st.warning(f"Motivo: {erro_real}")
     if st.button("Tentar conectar novamente agora"):
         st.rerun()
     st.stop()
 
 # --- CACHE DE DADOS ---
-@st.cache_data(ttl=10) # Aumentei o cache para 10s para evitar bater no Google toda hora
+@st.cache_data(ttl=10)
 def carregar_dados_planilha():
     try:
         dados = aba_chamados.get_all_records()
@@ -111,7 +103,7 @@ else:
     df = carregar_dados_planilha()
 
     if df.empty:
-        st.warning("Carregando dados... Se travar, clique no botão abaixo.")
+        st.warning("Carregando dados...")
         if st.button("🔄 Forçar Recarregamento"):
             st.cache_data.clear()
             st.rerun()
@@ -126,7 +118,7 @@ else:
         st.error("Erro: Colunas 'Status' ou 'Responsavel' não encontradas.")
         st.stop()
 
-    # --- CENÁRIO A: TEM CHAMADO ---
+    # --- CENÁRIO A: TEM CHAMADO (AGORA COM CONFIRMAÇÃO) ---
     if not meu_chamado.empty:
         dados = meu_chamado.iloc[0]
         numero_chamado = dados.get('Dados', 'N/A') 
@@ -142,25 +134,52 @@ else:
         
         st.write("---")
         
-        if st.button("✅ FINALIZAR", type="primary"):
-            try:
-                st.cache_data.clear()
-                
-                cell = aba_chamados.find(str(id_linha))
-                linha = cell.row
-                agora = hora_brasil()
-                
-                aba_chamados.update_cell(linha, 3, "Concluido")
-                aba_chamados.update_cell(linha, 6, agora)
-                
-                st.success("Feito!")
-                time.sleep(1)
+        # --- AQUI COMEÇA A LÓGICA DA CONFIRMAÇÃO ---
+        
+        # Cria a variável de memória se ela não existir
+        if 'confirmar_fim' not in st.session_state:
+            st.session_state['confirmar_fim'] = False
+
+        # SE NÃO ESTIVER CONFIRMANDO, MOSTRA O BOTÃO NORMAL
+        if not st.session_state['confirmar_fim']:
+            if st.button("✅ FINALIZAR ATENDIMENTO", type="primary"):
+                st.session_state['confirmar_fim'] = True # Ativa o modo confirmação
                 st.rerun()
-            except Exception as e:
-                st.error(f"Erro ao finalizar: {e}")
+        
+        # SE ESTIVER CONFIRMANDO, MOSTRA O AVISO E OS BOTÕES SIM/NÃO
+        else:
+            st.warning(f"⚠️ **Tem certeza que deseja finalizar o chamado {numero_chamado}?**")
+            col_sim, col_nao = st.columns(2)
+            
+            with col_sim:
+                if st.button("👍 SIM, FINALIZAR", type="primary", use_container_width=True):
+                    try:
+                        st.cache_data.clear()
+                        
+                        cell = aba_chamados.find(str(id_linha))
+                        linha = cell.row
+                        agora = hora_brasil()
+                        
+                        aba_chamados.update_cell(linha, 3, "Concluido")
+                        aba_chamados.update_cell(linha, 6, agora)
+                        
+                        st.success("Feito!")
+                        st.session_state['confirmar_fim'] = False # Reseta a memória
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao finalizar: {e}")
+            
+            with col_nao:
+                if st.button("❌ NÃO / CANCELAR", use_container_width=True):
+                    st.session_state['confirmar_fim'] = False # Cancela e volta ao normal
+                    st.rerun()
 
     # --- CENÁRIO B: LIVRE ---
     else:
+        # Garante que o estado de confirmação esteja desligado se você não tiver chamado
+        st.session_state['confirmar_fim'] = False 
+        
         pendentes = df[df['Status'] == 'Pendente']
         qtd = len(pendentes)
 
@@ -168,12 +187,9 @@ else:
 
         if qtd > 0:
             if st.button("📥 PEGAR PRÓXIMO"):
-                # Limpa cache IMEDIATAMENTE antes de tentar pegar
                 st.cache_data.clear()
                 
                 try:
-                    # Busca manual para garantir que ninguém pegou
-                    # (Não usamos a função com cache aqui propositalmente)
                     dados_reais = aba_chamados.get_all_records()
                     df_novo = pd.DataFrame(dados_reais)
                     
