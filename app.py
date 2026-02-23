@@ -4,13 +4,18 @@ import gspread
 from datetime import datetime
 import time
 import pytz
+import os
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Distribuidor Qualitor", page_icon="🎫")
 
-# --- CONEXÃO BÁSICA ---
+# --- CONEXÃO REVELADORA DE ERROS ---
 @st.cache_resource
 def conectar_google_sheets():
+    # Verifica se tem credenciais (seja no Git ou no PC)
+    if not os.path.exists("credentials.json") and "gcp_service_account" not in st.secrets:
+         return "🚨 ERRO: Nenhuma credencial encontrada. Faltam os Secrets (no Git) ou o credentials.json (no PC)."
+         
     try:
         if "gcp_service_account" in st.secrets:
             creds_dict = st.secrets["gcp_service_account"]
@@ -18,9 +23,11 @@ def conectar_google_sheets():
         else:
             client = gspread.service_account(filename="credentials.json")
         
+        # Tenta abrir a planilha do Qualitor
         return client.open("Chamados_Qualitor")
     except Exception as e:
-        return None
+        # Se der erro, retorna o texto exato do Google
+        return f"Erro do Google: {str(e)}"
 
 # --- FUNÇÃO HORA BRASIL ---
 def hora_brasil():
@@ -33,8 +40,17 @@ aba_chamados = None
 aba_users = None
 erro_real = ""
 
-if sh is None:
-    st.error("Erro total: Não consegui nem abrir a planilha.")
+# --- DETETIVE: AVALIA SE A CONEXÃO FUNCIONOU ---
+if isinstance(sh, str):
+    st.error("❌ A conexão falhou antes de carregar as abas.")
+    st.warning(f"Diagnóstico: {sh}")
+    
+    if "SpreadsheetNotFound" in sh:
+        st.info("💡 Dica: O robô logou no Google, mas não achou a planilha. Verifique se o nome está exatamente 'Chamados_Qualitor' e se o e-mail do robô está como Editor.")
+    
+    st.stop()
+elif sh is None:
+    st.error("Erro desconhecido ao tentar conectar.")
     st.stop()
 
 # Tenta 10 vezes (paciência total de ~40 segundos)
@@ -53,9 +69,9 @@ for tentativa in range(10):
         erro_real = str(e)
         time.sleep(2 + tentativa) 
 
-# SE FALHOU TUDO
+# SE FALHOU TUDO (ABAS)
 if aba_chamados is None or aba_users is None:
-    st.error("❌ O Robô desistiu depois de 10 tentativas.")
+    st.error("❌ O Robô conectou, mas desistiu de carregar as abas depois de 10 tentativas.")
     st.warning(f"Motivo: {erro_real}")
     if st.button("Tentar conectar novamente agora"):
         st.rerun()
@@ -224,6 +240,7 @@ else:
             if st.button("🔄 Verificar"):
                 st.cache_data.clear()
                 st.rerun()
+
 
 
 
