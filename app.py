@@ -149,7 +149,7 @@ if 'soltar_baloes' in st.session_state and st.session_state['soltar_baloes']:
 if 'tema_escolhido' not in st.session_state:
     st.session_state['tema_escolhido'] = "Padrão"
 
-if st.session_state['tema_escolhido'] == "Hacker Matrix":
+if st.session_state['tema_escolhido'] == "Matrix":
     st.markdown("""
         <style>
         .stApp { background-color: #0D0D0D; }
@@ -161,7 +161,7 @@ if st.session_state['tema_escolhido'] == "Hacker Matrix":
         .stTextInput>div>div>input { background-color: #000; color: #00FF41; border: 1px solid #00FF41; }
         </style>
     """, unsafe_allow_html=True)
-elif st.session_state['tema_escolhido'] == "Dark Night":
+elif st.session_state['tema_escolhido'] == "Escuro":
     st.markdown("""
         <style>
         .stApp { background-color: #0b1120; }
@@ -171,7 +171,7 @@ elif st.session_state['tema_escolhido'] == "Dark Night":
         [data-testid="stSidebar"] { background-color: #0f172a; border-right: 1px solid #1e293b; }
         </style>
     """, unsafe_allow_html=True)
-elif st.session_state['tema_escolhido'] == "Rosa Fofo":
+elif st.session_state['tema_escolhido'] == "Rosa":
     st.markdown("""
         <style>
         .stApp { background-color: #fff0f5; }
@@ -303,22 +303,22 @@ else:
         st.markdown("### 🗄️ Base Geral (Todos os Status)")
         cb1, cb2, cb3 = st.columns(3)
         cb1.metric("Total na Base", total_base)
-        cb2.metric("✅ Geral no Prazo", base_dentro)
-        cb3.metric("🔥 Geral Atrasado", base_fora)
+        cb2.metric("✅ SLA no Prazo", base_dentro)
+        cb3.metric("🔥 SLA Atrasado", base_fora)
 
         st.write("---")
         st.markdown("### 🎫 Fila de Espera (Pendentes)")
         c1, c2, c3 = st.columns(3)
         c1.metric("Total Pendente", pend_total)
-        c2.metric("✅ Fila no Prazo", pend_dentro)
-        c3.metric("🔥 Fila Atrasada", pend_fora)
+        c2.metric("✅ SLA no Prazo", pend_dentro)
+        c3.metric("🔥 SLA Atrasada", pend_fora)
         
         st.write("---")
         st.markdown("### ⚙️ Em Atendimento (Agora)")
         c4, c5, c6 = st.columns(3)
         c4.metric("Total em Andamento", and_total)
-        c5.metric("✅ Andamento no Prazo", and_dentro)
-        c6.metric("🔥 Andamento Atrasado", and_fora)
+        c5.metric("✅ Andamento SLA no Prazo", and_dentro)
+        c6.metric("🔥 Andamento SLA Atrasado", and_fora)
         
         st.write("---")
         st.markdown("### 🏆 Fechamentos (Hoje)")
@@ -645,3 +645,4 @@ else:
                         st.caption("E-mail Logística (Clique na caixa para copiar):")
                         st.code(email_l, language="text")
             else: st.info("Aba 'Transportadoras' não encontrada ou ainda está vazia.")
+
