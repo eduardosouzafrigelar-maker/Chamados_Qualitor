@@ -144,7 +144,7 @@ if 'soltar_baloes' in st.session_state and st.session_state['soltar_baloes']:
     st.session_state['soltar_baloes'] = False
 
 # ===================================================
-# 🎨 APLICADOR DE TEMAS
+# 🎨 APLICADOR DE TEMAS (AGORA CIRÚRGICO)
 # ===================================================
 if 'tema_escolhido' not in st.session_state:
     st.session_state['tema_escolhido'] = "Padrão"
@@ -153,9 +153,10 @@ if st.session_state['tema_escolhido'] == "Matrix":
     st.markdown("""
         <style>
         .stApp { background-color: #0D0D0D; }
-        h1, h2, h3, h4, p, span, div, label { color: #00FF41 !important; font-family: 'Courier New', Courier, monospace !important; }
-        .stButton>button { background-color: #000000; color: #00FF41; border: 1px solid #00FF41; box-shadow: 0 0 5px #00FF41;}
-        .stButton>button:hover { background-color: #00FF41; color: #000000; }
+        h1, h2, h3, h4, p, label, li { color: #00FF41 !important; font-family: 'Courier New', Courier, monospace !important; }
+        [data-testid="stMetricValue"], [data-testid="stMetricLabel"] { color: #00FF41 !important; font-family: 'Courier New', Courier, monospace !important; }
+        .stButton>button { background-color: #000000; color: #00FF41 !important; border: 1px solid #00FF41; box-shadow: 0 0 5px #00FF41; font-family: 'Courier New', Courier, monospace !important;}
+        .stButton>button:hover { background-color: #00FF41; color: #000000 !important; }
         [data-testid="stSidebar"] { background-color: #050505; border-right: 2px solid #00FF41; }
         .stSelectbox>div>div { background-color: #000; color: #00FF41; border: 1px solid #00FF41; }
         .stTextInput>div>div>input { background-color: #000; color: #00FF41; border: 1px solid #00FF41; }
@@ -165,9 +166,10 @@ elif st.session_state['tema_escolhido'] == "Escuro":
     st.markdown("""
         <style>
         .stApp { background-color: #0b1120; }
-        h1, h2, h3, h4, p, span, div, label { color: #e2e8f0 !important; }
-        .stButton>button { background-color: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; }
-        .stButton>button:hover { background-color: #38bdf8; color: #0b1120; }
+        h1, h2, h3, h4, p, label, li { color: #e2e8f0 !important; }
+        [data-testid="stMetricValue"], [data-testid="stMetricLabel"] { color: #e2e8f0 !important; }
+        .stButton>button { background-color: #1e293b; color: #38bdf8 !important; border: 1px solid #38bdf8; }
+        .stButton>button:hover { background-color: #38bdf8; color: #0b1120 !important; }
         [data-testid="stSidebar"] { background-color: #0f172a; border-right: 1px solid #1e293b; }
         </style>
     """, unsafe_allow_html=True)
@@ -175,9 +177,10 @@ elif st.session_state['tema_escolhido'] == "Rosa":
     st.markdown("""
         <style>
         .stApp { background-color: #fff0f5; }
-        h1, h2, h3, h4, p, span, div, label { color: #d81b60 !important; font-family: 'Trebuchet MS', sans-serif !important; }
-        .stButton>button { background-color: #ffb6c1; color: #fff; border: 2px solid #ff69b4; border-radius: 20px;}
-        .stButton>button:hover { background-color: #ff69b4; color: #fff; }
+        h1, h2, h3, h4, p, label, li { color: #d81b60 !important; font-family: 'Trebuchet MS', sans-serif !important; }
+        [data-testid="stMetricValue"], [data-testid="stMetricLabel"] { color: #d81b60 !important; font-family: 'Trebuchet MS', sans-serif !important; }
+        .stButton>button { background-color: #ffb6c1; color: #fff !important; border: 2px solid #ff69b4; border-radius: 20px; font-family: 'Trebuchet MS', sans-serif !important;}
+        .stButton>button:hover { background-color: #ff69b4; color: #fff !important; }
         [data-testid="stSidebar"] { background-color: #ffe4e1; border-right: 2px solid #ffb6c1; }
         .stSelectbox>div>div { background-color: #fff; color: #d81b60; border: 2px solid #ffb6c1; border-radius: 15px;}
         .stTextInput>div>div>input { background-color: #fff; color: #d81b60; border: 2px solid #ffb6c1; border-radius: 15px;}
