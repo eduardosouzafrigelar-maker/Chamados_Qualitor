@@ -549,7 +549,6 @@ else:
                                     registrar_log(usuario, f"Finalizou {num}")
                                     st.session_state['confirmar'] = False
                                     
-                                    # LÓGICA DOS BALÕES CORRIGIDA 🎈 (Proteção contra coluna inexistente)
                                     hoje = data_hoje()
                                     if 'Data_Conclusao' in df.columns:
                                         feitos = len(df[(df['Status'] == 'Concluido') & (df['Responsavel'] == usuario) & (df['Data_Conclusao'].astype(str).str.contains(hoje))])
@@ -650,5 +649,3 @@ else:
                         st.caption("E-mail Logística (Clique na caixa para copiar):")
                         st.code(email_l, language="text")
             else: st.info("Aba 'Transportadoras' não encontrada ou ainda está vazia.")
-
-
