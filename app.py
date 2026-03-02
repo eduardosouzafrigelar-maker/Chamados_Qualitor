@@ -350,7 +350,7 @@ else:
         with st.sidebar:
             st.header(f"👤 {usuario}")
             
-            novo_tema = st.selectbox("🎨 Tema Visual", ["Padrão", "Hacker Matrix", "Dark Night", "Rosa Fofo"], index=["Padrão", "Hacker Matrix", "Dark Night", "Rosa Fofo"].index(st.session_state['tema_escolhido']))
+            novo_tema = st.selectbox("🎨 Tema Visual", ["Padrão", "Matrix", "Escuro", "Rosa"], index=["Padrão", "Hacker Matrix", "Dark Night", "Rosa Fofo"].index(st.session_state['tema_escolhido']))
             if novo_tema != st.session_state['tema_escolhido']:
                 st.session_state['tema_escolhido'] = novo_tema
                 st.rerun()
@@ -650,3 +650,4 @@ else:
                         st.caption("E-mail Logística (Clique na caixa para copiar):")
                         st.code(email_l, language="text")
             else: st.info("Aba 'Transportadoras' não encontrada ou ainda está vazia.")
+
