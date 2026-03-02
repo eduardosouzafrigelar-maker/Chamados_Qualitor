@@ -161,7 +161,7 @@ if st.session_state['tema_escolhido'] == "Matrix":
         .stTextInput>div>div>input { background-color: #000; color: #00FF41; border: 1px solid #00FF41; }
         </style>
     """, unsafe_allow_html=True)
-elif st.session_state['tema_escolhido'] == "Dark":
+elif st.session_state['tema_escolhido'] == "Escuro":
     st.markdown("""
         <style>
         .stApp { background-color: #0b1120; }
@@ -303,29 +303,29 @@ else:
         st.markdown("### 🗄️ Base Geral (Todos os Status)")
         cb1, cb2, cb3 = st.columns(3)
         cb1.metric("Total na Base", total_base)
-        cb2.metric("✅ SLA no Prazo", base_dentro)
-        cb3.metric("🔥 SLA Atrasado", base_fora)
+        cb2.metric("✅ Geral no Prazo", base_dentro)
+        cb3.metric("🔥 Geral Atrasado", base_fora)
 
         st.write("---")
         st.markdown("### 🎫 Fila de Espera (Pendentes)")
         c1, c2, c3 = st.columns(3)
         c1.metric("Total Pendente", pend_total)
-        c2.metric("✅ SLA no Prazo", pend_dentro)
-        c3.metric("🔥 SLA Fora", pend_fora)
+        c2.metric("✅ Fila no Prazo", pend_dentro)
+        c3.metric("🔥 Fila Atrasada", pend_fora)
         
         st.write("---")
         st.markdown("### ⚙️ Em Atendimento (Agora)")
         c4, c5, c6 = st.columns(3)
         c4.metric("Total em Andamento", and_total)
-        c5.metric("✅ SLA no Prazo", and_dentro)
-        c6.metric("🔥 SLA Atrasado", and_fora)
+        c5.metric("✅ Andamento no Prazo", and_dentro)
+        c6.metric("🔥 Andamento Atrasado", and_fora)
         
         st.write("---")
         st.markdown("### 🏆 Fechamentos (Hoje)")
         c7, c8, c9 = st.columns(3)
         c7.metric("Total Concluído", feitos_total)
-        c8.metric("🟢 SLA no Prazo", feitos_dentro)
-        c9.metric("🔴 SLA Atrasadas", feitos_fora)
+        c8.metric("🟢 Entregas no Prazo", feitos_dentro)
+        c9.metric("🔴 Entregas Atrasadas", feitos_fora)
         
         time.sleep(15)
         st.cache_data.clear(); st.rerun()
@@ -350,4 +350,303 @@ else:
         with st.sidebar:
             st.header(f"👤 {usuario}")
             
-            novo_tema = st.selectbox("🎨 Tema Visual", ["Padrão", "Hacker
+            novo_tema = st.selectbox("🎨 Tema Visual", ["Padrão", "Hacker Matrix", "Dark Night", "Rosa Fofo"], index=["Padrão", "Hacker Matrix", "Dark Night", "Rosa Fofo"].index(st.session_state['tema_escolhido']))
+            if novo_tema != st.session_state['tema_escolhido']:
+                st.session_state['tema_escolhido'] = novo_tema
+                st.rerun()
+            st.divider()
+
+            modo_gerente = False
+            if usuario in ADMINS:
+                st.success("👑 Modo Gestor Liberado")
+                modo_gerente = st.toggle("Painel de Gestão", value=False)
+                st.divider()
+            
+            st.info(f"Status Atual: **{status_real}**")
+            
+            c1, c2 = st.columns(2)
+            if c1.button("🟢 Online"):
+                if linha_planilha:
+                    aba_users.update_cell(linha_planilha, 3, "Disponivel")
+                    registrar_log(usuario, "Ficou Disponivel")
+                    st.cache_data.clear(); st.rerun()
+            if c2.button("☕ Pausa"):
+                if linha_planilha:
+                    aba_users.update_cell(linha_planilha, 3, "Pausa")
+                    registrar_log(usuario, "Entrou em Pausa")
+                    st.cache_data.clear(); st.rerun()
+            if st.button("🚽 Banheiro"):
+                if linha_planilha:
+                    aba_users.update_cell(linha_planilha, 3, "Banheiro")
+                    registrar_log(usuario, "Foi ao Banheiro")
+                    st.cache_data.clear(); st.rerun()
+            
+            st.divider()
+            st.subheader("🏆 Seu Desempenho")
+            if not df.empty and 'Data_Conclusao' in df.columns:
+                hoje = data_hoje()
+                feitos_hoje = df[(df['Status'] == 'Concluido') & (df['Data_Conclusao'].astype(str).str.contains(hoje))]
+                
+                if not feitos_hoje.empty:
+                    ranking = feitos_hoje['Responsavel'].value_counts().reset_index()
+                    ranking.columns = ['Nome', 'Qtd']
+                    minha_posicao = ranking.index[ranking['Nome'] == usuario].tolist()
+                    
+                    if minha_posicao:
+                        pos_real = minha_posicao[0] + 1
+                        qtd_minha = ranking.iloc[minha_posicao[0]]['Qtd']
+                        st.markdown(f"✅ **Feitos hoje:** {qtd_minha} chamados")
+                        if pos_real == 1: st.success(f"🥇 Você está em 1º Lugar na equipe!")
+                        elif pos_real == 2: st.info(f"🥈 Você está em 2º Lugar na equipe!")
+                        elif pos_real == 3: st.warning(f"🥉 Você está em 3º Lugar na equipe!")
+                        else: st.markdown(f"📍 **Sua posição no ranking:** {pos_real}º Lugar")
+                    else: st.caption("Você ainda não finalizou chamados hoje.")
+
+                    if usuario in ADMINS:
+                        st.write("---")
+                        st.caption("👑 Visão do Gestor (Top 3):")
+                        for i, row in ranking.head(3).iterrows():
+                            medalha = "🥇" if i == 0 else "🥈" if i == 1 else "🥉"
+                            st.markdown(f"{medalha} {row['Nome']} ({row['Qtd']})")
+                else: st.caption("A corrida de hoje ainda não começou!")
+
+            st.divider()
+            if st.button("Sair (Logout)"):
+                registrar_log(usuario, "LOGOUT") 
+                del st.session_state['usuario']; st.rerun()
+
+        # ===================================================
+        # 👑 VISÃO DO GERENTE (ADMIN)
+        # ===================================================
+        if modo_gerente:
+            st.title("📊 Painel de Controle - Gestão")
+            st.caption(f"Última atualização: {hora_texto()}")
+            if st.button("🔄 Atualizar Tudo"): st.cache_data.clear(); st.rerun()
+            
+            st.write("---")
+            st.subheader("🚨 Monitoramento de SLA (Em Andamento)")
+            em_andamento = pd.DataFrame()
+            if not df.empty:
+                em_andamento = df[df['Status'] == 'Em Andamento'].copy()
+                if not em_andamento.empty:
+                    lista_sla = []
+                    for index, row in em_andamento.iterrows():
+                        status_visual = row.get('SLA', 'Sem Info')
+                        if 'fora' in str(status_visual).lower():
+                            status_visual = f"🔥 {status_visual}"
+                        else:
+                            status_visual = f"✅ {status_visual}"
+                            
+                        lista_sla.append({
+                            "Chamado": row.get('Dados', ''),
+                            "Etapa": row.get('Etapa', ''),
+                            "Responsável": row.get('Responsavel', ''),
+                            "SLA": status_visual,
+                            "ID": row.get('ID')
+                        })
+                    df_sla = pd.DataFrame(lista_sla)
+                    st.dataframe(df_sla, hide_index=True, use_container_width=True)
+                else: st.success("Equipe livre! Nenhum chamado em andamento.")
+
+            st.write("---")
+            st.subheader("🛠️ Ações de Emergência")
+            if not em_andamento.empty:
+                opcoes = em_andamento.apply(lambda x: f"L{x.name + 2} - ID {x['ID']} - {x['Dados']} ({x['Responsavel']})", axis=1).tolist()
+                selecionado = st.selectbox("Selecione um chamado travado:", [""] + opcoes)
+                
+                if selecionado:
+                    linha_trava = int(selecionado.split(" - ")[0].replace("L", ""))
+                    col_dev, col_forcar = st.columns(2)
+
+                    if col_dev.button("↩️ Devolver para Fila"):
+                        try:
+                            aba_chamados.update_cell(linha_trava, COL_STATUS, "Pendente") 
+                            aba_chamados.update_cell(linha_trava, COL_RESP, "") 
+                            aba_chamados.update_cell(linha_trava, COL_INICIO, "") 
+                            registrar_log(usuario, f"ADMIN: Devolveu linha {linha_trava}")
+                            st.success("Devolvido!")
+                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                        except Exception as e: st.error(f"Erro: {e}")
+
+                    if col_forcar.button("🏁 Forçar Conclusão"):
+                        try:
+                            aba_chamados.update_cell(linha_trava, COL_STATUS, "Concluido") 
+                            aba_chamados.update_cell(linha_trava, COL_FIM, hora_texto()) 
+                            registrar_log(usuario, f"ADMIN: Forçou conclusão linha {linha_trava}")
+                            st.success("Encerrado!")
+                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                        except Exception as e: st.error(f"Erro: {e}")
+            else: st.info("Nada para destravar.")
+
+            st.write("---")
+            c_status, c_prod = st.columns(2)
+            with c_status:
+                st.subheader("🚦 Equipe Online")
+                if not df_equipe.empty:
+                    cols = [c for c in df_equipe.columns if c in ['Colaboradores','Status']]
+                    st.dataframe(df_equipe[cols], hide_index=True, use_container_width=True)
+            with c_prod:
+                st.subheader("🏆 Produção Hoje")
+                if not df.empty:
+                    conc = df[df['Status'] == 'Concluido'].copy()
+                    if 'Data_Conclusao' in conc.columns:
+                        hoje = data_hoje()
+                        feitos_hoje = conc[conc['Data_Conclusao'].astype(str).str.contains(hoje)]
+                        if not feitos_hoje.empty:
+                            resumo = feitos_hoje['Responsavel'].value_counts().reset_index()
+                            resumo.columns = ['Colaborador', 'Qtd']
+                            st.dataframe(resumo, hide_index=True, use_container_width=True)
+                        else: st.info("Sem dados hoje.")
+
+        # ===================================================
+        # 👷 VISÃO DO OPERADOR
+        # ===================================================
+        else:
+            if status_real != "Disponivel":
+                st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
+            else:
+                st.success("🟢 ONLINE - Aguardando chamados...")
+                
+                if df.empty:
+                    st.write("Sem dados.")
+                    if st.button("Recarregar"): st.cache_data.clear(); st.rerun()
+                else:
+                    meu_chamado = df[(df['Status'] == 'Em Andamento') & (df['Responsavel'] == usuario)]
+                    
+                    if len(meu_chamado) > 0:
+                        if len(meu_chamado) > 1:
+                            st.warning("⚠️ Atenção: Você tem mais de um chamado em andamento. Finalize este primeiro.")
+
+                        dados = meu_chamado.iloc[0]
+                        num = dados.get('Dados', 'N/A') 
+                        etapa_atual = dados.get('Etapa', 'N/A')
+                        sla_atual = str(dados.get('SLA', 'Sem Info'))
+                        
+                        if 'fora' in sla_atual.lower():
+                            st.error(f"🔥 ALERTA DE SLA: {sla_atual}")
+                        else:
+                            st.info(f"✅ Status do SLA: {sla_atual}")
+
+                        st.markdown(f"### 📞 Chamado: **{num}** | Etapa: **{etapa_atual}**")
+                        if str(num) != 'N/A':
+                            link = f"https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado={num}"
+                            st.link_button("🔗 Abrir no Qualitor", link)
+                        
+                        st.write("---")
+                        if 'confirmar' not in st.session_state: st.session_state['confirmar'] = False
+                        
+                        if not st.session_state['confirmar']:
+                            if st.button("✅ FINALIZAR", type="primary"):
+                                st.session_state['confirmar'] = True; st.rerun()
+                        else:
+                            st.warning("Confirma?")
+                            cy, cn = st.columns(2)
+                            if cy.button("👍 SIM"):
+                                try:
+                                    idx_linha = int(meu_chamado.index[0]) + 2 
+                                    aba_chamados.update_cell(idx_linha, COL_STATUS, "Concluido") 
+                                    aba_chamados.update_cell(idx_linha, COL_FIM, hora_texto()) 
+                                    registrar_log(usuario, f"Finalizou {num}")
+                                    st.session_state['confirmar'] = False
+                                    
+                                    # LÓGICA DOS BALÕES CORRIGIDA 🎈 (Proteção contra coluna inexistente)
+                                    hoje = data_hoje()
+                                    if 'Data_Conclusao' in df.columns:
+                                        feitos = len(df[(df['Status'] == 'Concluido') & (df['Responsavel'] == usuario) & (df['Data_Conclusao'].astype(str).str.contains(hoje))])
+                                    else:
+                                        feitos = 0
+                                        
+                                    if (feitos + 1) in [10, 25, 50, 100]:
+                                        st.session_state['soltar_baloes'] = True
+                                        
+                                    st.cache_data.clear(); time.sleep(1); st.rerun()
+                                except Exception as e: st.error(f"Erro ao salvar: {e}")
+                            
+                            if cn.button("❌ NÃO"):
+                                st.session_state['confirmar'] = False; st.rerun()
+                    
+                    else:
+                        fila = df[(df['Status'] == 'Pendente') & (df['Responsavel'] == "")].copy()
+                        if "Todas" not in minhas_etapas and "todas" not in [e.lower() for e in minhas_etapas]:
+                            fila = fila[fila['Etapa'].astype(str).isin(minhas_etapas)]
+
+                        qtd = len(fila)
+                        
+                        if 'tamanho_fila_anterior' not in st.session_state:
+                            st.session_state['tamanho_fila_anterior'] = qtd
+                            
+                        if qtd > st.session_state['tamanho_fila_anterior']:
+                            st.toast("🔔 Novo chamado entrou na fila!")
+                            som_url = f"https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3?t={time.time()}"
+                            st.markdown(f'<audio autoplay="true"><source src="{som_url}" type="audio/mpeg"></audio>', unsafe_allow_html=True)
+                        
+                        st.session_state['tamanho_fila_anterior'] = qtd 
+                        
+                        c_f, c_r = st.columns([3,1])
+                        c_f.metric("Sua Fila de Espera (Permitida)", qtd)
+                        if c_r.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
+                        
+                        if qtd > 0:
+                            if st.button("📥 PEGAR PRÓXIMO", type="primary", use_container_width=True):
+                                try:
+                                    if not fila.empty:
+                                        if 'SLA' in fila.columns:
+                                            fila['Peso_SLA'] = fila['SLA'].astype(str).apply(lambda x: 1 if 'fora' in x.lower() else 2)
+                                            fila = fila.sort_values(by='Peso_SLA', kind='stable')
+                                        
+                                        item = fila.iloc[0]
+                                        num_l = str(item.get('Dados','')).replace('.0','')
+                                        idx_linha = int(item.name) + 2 
+                                        agora = hora_texto()
+                                        
+                                        aba_chamados.update_cell(idx_linha, COL_STATUS, "Em Andamento") 
+                                        aba_chamados.update_cell(idx_linha, COL_RESP, usuario)        
+                                        aba_chamados.update_cell(idx_linha, COL_INICIO, agora)          
+                                        registrar_log(usuario, f"Pegou {num_l} (Etapa {item.get('Etapa','')})")
+                                        
+                                        st.cache_data.clear(); time.sleep(1); st.rerun()
+                                    else: st.warning("Alguém pegou antes!"); time.sleep(1); st.rerun()
+                                except Exception as e: st.error(f"Erro ao pegar chamado: {e}")
+                        else: st.caption("Sem chamados na sua alçada.")
+
+            # --- HISTÓRICO ---
+            st.write("---")
+            if not df.empty:
+                hist = df[(df['Status']=='Concluido') & (df['Responsavel']==usuario)].copy()
+                if not hist.empty and 'Data_Conclusao' in hist.columns:
+                    hoje = data_hoje()
+                    hist_hoje = hist[hist['Data_Conclusao'].astype(str).str.contains(hoje)].copy()
+                    qtd_hoje = len(hist_hoje)
+                    st.subheader(f"✅ Seus Concluídos Hoje: **{qtd_hoje}**")
+                    
+                    if qtd_hoje > 0:
+                        hist_hoje['Link'] = "https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado=" + hist_hoje['Dados'].astype(str)
+                        hist_hoje['Tempo_Gasto'] = hist_hoje.apply(lambda row: calcular_duracao_str(row.get('Inicio', ''), row.get('Data_Conclusao', '')), axis=1)
+                        hist_hoje = hist_hoje.rename(columns={'Data_Conclusao': 'Horário'})
+                        cols_show = ['Link', 'Etapa', 'SLA', 'Tempo_Gasto', 'Horário'] if 'SLA' in hist_hoje.columns else ['Link', 'Etapa', 'Tempo_Gasto', 'Horário']
+                        st.dataframe(hist_hoje[cols_show].tail(15), hide_index=True, use_container_width=True,
+                            column_config={"Link": st.column_config.LinkColumn("Chamado", display_text=r"cdchamado=(.*)")})
+                    else: st.caption("Nenhum chamado concluído por você hoje, ainda. Vamos lá!")
+
+        # ===================================================
+        # 🚚 GAVETA DE TRANSPORTADORAS
+        # ===================================================
+        st.write("---")
+        with st.expander("🚚 Agenda de Contatos - Transportadoras"):
+            df_transp = carregar_agenda_transp()
+            if not df_transp.empty and 'Transportadora' in df_transp.columns:
+                lista_t = [str(t) for t in df_transp['Transportadora'].dropna().unique() if str(t).strip() != '']
+                escolha_t = st.selectbox("Selecione a Transportadora:", [""] + sorted(lista_t))
+                if escolha_t:
+                    dados_t = df_transp[df_transp['Transportadora'] == escolha_t].iloc[0]
+                    email_t = dados_t.get('Email_Transp', 'Não cadastrado')
+                    email_l = dados_t.get('Email_Logistica', 'Não cadastrado')
+                    
+                    c_t, c_l = st.columns(2)
+                    with c_t:
+                        st.caption("E-mail Transportadora (Clique na caixa para copiar):")
+                        st.code(email_t, language="text") 
+                    with c_l:
+                        st.caption("E-mail Logística (Clique na caixa para copiar):")
+                        st.code(email_l, language="text")
+            else: st.info("Aba 'Transportadoras' não encontrada ou ainda está vazia.")
