@@ -5,12 +5,41 @@ from datetime import datetime, timedelta
 import time
 import pytz
 import os
+import google.generativeai as genai
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
 
 # --- 👑 ADMINISTRAÇÃO ---
 ADMINS = ["Eduardo", "EduardoSouza", "Gestor"] 
+
+# --- 🧠 CONFIGURAÇÃO DA IA (ORÁCULO) ---
+try:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    
+    # MODO AUTO-DESCOBERTA DE MODELO
+    modelo_escolhido = None
+    for m in genai.list_models():
+        if 'generateContent' in m.supported_generation_methods:
+            if 'flash' in m.name: 
+                modelo_escolhido = m.name
+                break
+    
+    if not modelo_escolhido:
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                modelo_escolhido = m.name
+                break
+
+    if modelo_escolhido and modelo_escolhido.startswith("models/"):
+        modelo_escolhido = modelo_escolhido.replace("models/", "")
+        
+    modelo_oraculo = genai.GenerativeModel(modelo_escolhido)
+    ia_ativa = True
+except Exception as e:
+    modelo_oraculo = None
+    ia_ativa = False
+    erro_ia = str(e)
 
 # --- CONEXÃO BLINDADA (ANTI-TRAVAMENTO DO GOOGLE) ---
 @st.cache_resource
@@ -631,6 +660,42 @@ else:
                     else: st.caption("Nenhum chamado concluído por você hoje, ainda. Vamos lá!")
 
         # ===================================================
+        # 🧙‍♂️ GAVETA DO ORÁCULO (INTELIGÊNCIA ARTIFICIAL)
+        # ===================================================
+        st.write("---")
+        with st.expander("🧙‍♂️ Oráculo Frigelar - Tire suas dúvidas da operação"):
+            pergunta = st.text_input("O que você precisa saber?", placeholder="Ex: Qual o prazo de devolução?")
+            
+            if st.button("✨ Perguntar ao Oráculo"):
+                if ia_ativa:
+                    try:
+                        with open("regras_operacao.txt", "r", encoding="utf-8") as f:
+                            texto_regras = f.read()
+                        
+                        with st.spinner("O Oráculo está consultando o manual..."):
+                            comando = f"""
+                            Você é o Oráculo, um assistente interno sênior do SAC da Frigelar.
+                            Responda a pergunta do operador baseando-se EXCLUSIVAMENTE no manual abaixo.
+                            Se a resposta NÃO estiver no manual, diga exatamente: "Desculpe, não encontrei essa informação nas minhas regras atuais. Consulte o Supervisor."
+                            Seja direto, claro e educado.
+
+                            MANUAL DA OPERAÇÃO:
+                            {texto_regras}
+
+                            PERGUNTA DO OPERADOR: {pergunta}
+                            """
+                            
+                            resposta = modelo_oraculo.generate_content(comando)
+                            st.info(resposta.text)
+                    
+                    except FileNotFoundError:
+                        st.error("🚨 Arquivo 'regras_operacao.txt' não encontrado. Crie o arquivo na mesma pasta do sistema e lembre de subir ele para o GitHub também!")
+                    except Exception as e:
+                        st.error(f"🚨 Erro ao processar a resposta: {e}")
+                else:
+                    st.error(f"🚨 IA não configurada corretamente. Verifique a chave GEMINI_API_KEY no painel de Secrets do Streamlit Cloud. Erro: {erro_ia}")
+
+        # ===================================================
         # 🚚 GAVETA DE TRANSPORTADORAS
         # ===================================================
         st.write("---")
@@ -652,4 +717,3 @@ else:
                         st.caption("E-mail Logística (Clique na caixa para copiar):")
                         st.code(email_l, language="text")
             else: st.info("Aba 'Transportadoras' não encontrada ou ainda está vazia.")
-
