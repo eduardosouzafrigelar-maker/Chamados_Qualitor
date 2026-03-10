@@ -1,0 +1,695 @@
+Procedimento Operacional 
+Arrependimento	Número: 001
+	Área: N2 
+	Vigência: 02/12/2025
+
+Versões
+Versão	Elaboração	Aprovação	Assinatura	Assinatura Diretoria
+	Data	Responsável	Data	Responsável		
+
+1.0.	Objetivo 
+Descrever o processo logístico para tratativa de ocorrências oriundas de Arrependimento. Guia para execução de cada etapa, garantindo a qualidade e padronização do processo. 
+
+2.0. Abrangência 
+Este documento será utilizado por todos os colaboradores das áreas de Atendimento ao Cliente, Canais Digitais, Logística e Comercial.
+
+3.0. Distribuição 
+Equipes das áreas descritas no tópico “2.0”.
+
+4.0. Procedimentos
+O procedimento descrito a seguir demonstra em detalhes o processo realizado pelos envolvidos na análise, execução e finalização do atendimento ao cliente no serviço Arrependimento. 
+
+ 4.1. Triagem de Atendimento
+Cliente entra em contato com o SAC, que irá realizar questionamentos para identificar qual a solicitação do mesmo.
+Após os questionamentos, sendo identificado que se trata de um Arrependimento e que está dentro do prazo de 7 dias após a data de entrega, será tratado da seguinte forma:
+
+4.1.1. É aberto o chamado de Arrependimento para o N2, informando que o cliente desistiu de sua mercadoria por arrependimento de compra ou por algum tipo de defeito no produto, o N2 verificará se o produto é compatível a postagem ou coleta dos Correios, medindo até 1 metro e 30kg. 
+
+ 
+Exemplo: 
+ 
+
+4.2.5. Se não for compatível com as medidas dos Correios o N1/N2 gera OD para emissão de NFD e posteriormente solicitação de coleta do item através das etapas do chamado.
+
+4.2. Análise e tratativa N2
+Técnico N2 recebe o chamado, analisa se contém todas as informações e caso não estejam completas ou claras, o chamado retorna o próprio solicitante atualizar as informações faltantes. Se os dados estiverem completos, N2 verifica se cliente é contribuinte.
+
+4.2.1. O cliente NÃO é contribuinte e recebeu a mercadoria, o N2 verifica o chamado e se estiver no prazo de 7 dias corridos contando a partir da data de entrega até a data da reclamação, o N2 avalia se o produto pode ser postado no correio, caso tiver 1 m³ e 30 quilos gera o código de postagem ou coleta pelo correio, após a postagem ou coleta, é criado a OD (de acordo com os parâmetros de arrependimento) para o setor de garantia aprovar a OD, emitir a NFD e liberação do crédito para atendimento ao cliente.
+
+Se o produto não estiver dentro das especificações para devolução pelo correio, o N2 cria uma OD (de acordo com os parâmetros de arrependimento), após a garantia aprova a OD, emite a NFD e encaminha o chamado para as demais etapas, de acordo com a solicitação do cliente descrito na seção.
+
+4.2.2. Clientes contribuintes que receberam as mercadorias, é necessário solicitar para a garantia, um e ESCOPO da NFD que deve ser emitida pelo cliente (avançando para a etapa para GARANTIA CORPORATIVA - CLIENTE IE). Após o cliente emitir a NFD de acordo com o ESCOPO enviado, encaminhar o anexo no chamado para conferência. Estando tudo certo, o responsável pela etapa GARANTIA CORPORATIVA - CLIENTE IE avança etapa do chamado para o setor de garantia solicitar a coleta, após a confirmação de coleta A GARANTIA gera a OD através da etapa de INSCRITURAÇÃO DE NFD dando a entrada na NFD emitida pelo cliente, e envia para a etapa da garantia aprovar a OD e liberação do crédito para atendimento ao cliente.
+
+4.2.3. Nos atendimentos em que há a necessidade de coleta da mercadoria, o setor de Garantia irá contatar a transportadora e acompanhar até que a mesma retire no local de coleta, para isso, é sempre aberto um outro chamado pararelo no Qualitor no qual é acompanhado pela garantia. Após isso, irá confirmar a coleta no chamado e direcionar para o N2 seguir com a tratativa.
+
+4.2.4. Após ter a coleta confirmada, o N2 irá realizar o avanço de etapa para o atendimento ao cliente. Pagamentos em PIX ou boleto exigem dados bancários do cliente anexados no chamado, já pagamentos em cartão de crédito, é realizado o estorno pelo Contas a Receber. 
+
+4.2.5 Sendo a venda oriunda dos canais MKTP o reembolso é liberado diretamente pelo portal da compra.
+
+4.2.6 Sendo cliente de vendedor, estes serão orientados a atender o cliente com uma reposição, e após o faturamento da nova OV, o vendedor precisa informar para que seja registrado no chamado e possivelmente finalizado. Caso o cliente do vendedor queira ser reembolsado/estornado, o mesmo precisa ter seus dados bancários em anexo no chamado (somente para reembolso, pois estorno não é necessário). 
+
+4.2.7 Se a venda for oriunda do canal E-commerce, o técnico N2 verificará com o cliente qual a opção irá melhor lhe atender dentre reembolso e reposição. Caso o cliente opte por reembolso, o técnico N2 avançará etapa reembolso/estorno ao Contas a Pagar / Receber. Quando finalizado este processo, o técnico N2 informará ao cliente e encerrará o chamado Arrependimento. Caso o cliente opte pela reposição da mercadoria, o técnico N2 avançará etapa para o e-commerce emitir uma nova OV, após a nova OV ser faturada, será informado ao cliente e o chamado de Divergência de Produto será finalizado. 
+
+4.2.8 Quando o ressarcimento do cliente for realizado, N2 enviará um e-mail com a carta de cancelamento em anexo pelo Contas a Pagar, informando ao cliente e o chamado será encerrado, mas que seu caso foi resolvido.
+
+4.2.9 Para os casos em que reclama fora do prazo, será necessário anexar um e-mail com a autorização do Gerente Regional avaliar se o chamado será tratado ou terá o atendimento negado.
+
+5.0.  Responsabilidades
+5.1 Atendente SAC
+Responsável pelo atendimento inicial, triagem do caso e, a abertura de chamado de Arrependimento para o N2.
+
+5.2 Técnico N2
+Responsável pelo recebimento, conferência e tratativa do chamado de Arrependimento. Bem como, o direcionamento e comunicação de demandas às demais áreas.
+
+5.3 Filial de Origem
+Dar assistência às solicitações referentes à romaneio de coleta, análise de produto quando devolvidos ao CD.
+
+5.4 Garantia
+Acompanhar e solicitar o processo de coleta da mercadoria, aprovações de OD, emissão de ESCOPO.
+
+5.5 Contas a Pagar / Receber 
+Responsável por conferir e efetuar as solicitações de ressarcimento em conformidade dentro desse procedimento. 
+
+5.6 E-commerce
+Responsável por emitir a nova OV quando necessário dentro desse procedimento. 
+
+6.0. Disposições Gerais
+Casos especiais não citados no presente procedimento e/ou fluxo abaixo serão analisados pela gestão e pelas áreas responsáveis que se posicionarão a respeito.
+A próxima revisão deste procedimento acontecerá quando houver mudança de processo e/ou alteração por determinação da gestão responsável.
+O presente Procedimento Operacional Padrão revoga todas as disposições anteriores.
+
+ 
+
+Este fluxo está disponível em nosso sistema Qualitor em Execução de processo > Análise de Instância > Visualização gráfica
+
+
+Porto Alegre, 02 de dezembro de 2025.
+
+
+Procedimento Operacional Atraso de Entrega	Número: 001
+	Área: N2 
+	Vigência: 28/11/2025 
+
+
+1.0.	Objetivo 
+Descrever o processo logístico para tratativa de ocorrências oriundas de atraso de entrega. Guia para execução de cada etapa, garantindo a qualidade e padronização do processo.
+
+2.0. Abrangência 
+Este documento será utilizado por todos os colaboradores das áreas de Atendimento ao Cliente, Canais Digitais, Logística e Comercial.
+
+3.0. Distribuição 
+Equipes das áreas descritas no tópico “2.0”.
+
+4.0. Procedimentos
+Os procedimentos descritos a seguir demonstram em detalhes o processo realizado pelos envolvidos na análise, execução e finalização do atendimento ao cliente no serviço Atraso de Entrega.
+
+4.1. Triagem de atendimento
+O responsável pelo atendimento inicial (SAC/MKTP/Vendedor) filtra o motivo do contato do cliente.
+
+4.1.1. Confirmação de atraso de entrega
+O atendente consulta o SIMFRETE / site da transportadora para confirmar o atraso.
+Caso seja confirmado que a entrega se encontra em atraso, o responsável inicial pelo atendimento abre um chamado de atraso de entrega para o N2 (4.2.). 
+Se não estiver em atraso, o mesmo informa ao cliente a previsão de entrega e finaliza o atendimento.
+
+ 
+
+
+
+Exemplo: 
+ 
+
+4.1.2. Comprovante de entrega ou acareação
+Quando o cliente solicita um comprovante de entrega (não confirma o recebimento) ou acareação (não reconhece a assinatura) o responsável pela triagem de atendimento irá abrir um chamado de atraso de entrega para o N2 (4.2.) solicitando a documentação da entrega, mencionando no chamado se os dados do cliente estão de acordo.
+
+4.1.3. Sem rastreamento
+Cliente informa que está sem acesso ao rastreamento do seu pedido, o responsável irá verificar se realmente o rastreamento não está disponível no SIMFRETE nem no site da transportadora. 
+Caso não esteja em nenhum dos dois, irá abrir um chamado de atraso de entrega para o N2 (4.2.) verificar. 
+Se houver rastreamento, mas estiver em atraso, também abrirá um chamado de atraso de entrega para o N2 (4.2.). 
+Havendo o rastreamento, mas a entrega ainda estiver dentro do prazo, o atendente irá informar a previsão de entrega, finalizando o atendimento.
+
+4.2. Tratativa do chamado de atraso de entrega
+Após aberto o chamado, setor o N2 realiza uma análise dos dados informados e conforme a ocorrência dá início à tratativa.
+
+
+ 4.2.1. Atraso de entrega
+Técnico do N2 verifica o prazo no SIMFRETE e site da transportadora. 
+Caso não esteja em atraso, informa o prazo no chamado e o encerra.
+Se confirmado o atraso de entrega, o técnico irá verificar se há CT-e (Conhecimento de Transporte Eletrônico) emitido:
+
+4.2.1.1. Não havendo CT-e (Conhecimento de Transporte Eletrônico) emitido
+Técnico do N2 solicita romaneio para a filial de origem. 
+Se não houver romaneio de coleta, a filial de origem irá emitir uma NFD (porque passou do prazo da NF ser expedida) e irá emitir uma nova Ordem de Venda para o cliente. Após faturado a Nova OV, o N2 enviará o prazo atualizado ao cliente e encerra o chamado.
+A filial retornando com romaneio, o técnico enviará para a transportadora localizar a mercadoria e colocar em rota e informar novo prazo de entrega para informar no chamado e encerrar.
+
+4.2.1.2. Havendo CT-e e (Conhecimento de Transporte Eletrônico) emitido
+Técnico do N2 irá verificar a solicitação do cliente:
+Se a reclamação for de atraso de entrega, ele irá solicitar para a transportadora um novo prazo.  
+
+4.2.1.3. Caso haja a ocorrência para a tratativa, ele irá tratar ou encaminhar ao setor responsável e após, encaminhará para a transportadora dar seguimento. A transportadora informando um novo prazo, ele assentará no chamado e o encerrará.
+
+4.2.1.4. Se a solicitação do cliente for comprovante de entrega assinado, o técnico irá solicitar para a transportadora, que irá enviar o documento caso esteja disponível. Em posse do comprovante, o técnico N2 enviará ao cliente, anexará ao chamado e o mesmo será encerrado. Se a transportadora não dispor do comprovante assinado, ela deverá informar se foi uma baixa indevida e passar novo prazo, ou autorizar extravio (indenização) caso não localize o pedido. 
+
+4.2.1.5. Para os casos em que o cliente desconhece o recebedor constante no comprovante de entrega, o técnico N2 irá solicitar a acareação para a transportadora, a qual retornará ao local de entrega para coleta de dados mais detalhados sobre quem recebeu o material.
+
+4.3. Nos casos em que a transportadora constata que não há divergência no endereço de entrega e o recebedor conhece o destinatário, não será autorizado o débito e a acareação será encerrada. O técnico N2 informará o cliente e o chamado será encerrado.
+
+4.3.1. Quando a transportadora retorna ao local de entrega, não é atendida e/ou no caso do recebedor não localizado dentro do período da acareação, a transportadora irá autorizar o débito e técnico N2 avançará a etapa do chamado para Extravio de Produto (indenização) com todos os dados para a tratativa, deixando de ser Atraso de Entrega.
+
+4.3.2. Dos casos em que a transportadora retorna ao local, localiza o recebedor, porém não recupera a mercadoria, ou a mesma não está em condições, a transportadora irá autorizar o débito (indenização) e o técnico N2 tratará o chamado que passa a ser de Extravio de Produto com todos os dados para a tratativa.
+
+4.3.3. Caso a mercadoria seja recuperada e em perfeitas condições, a transportadora irá comunicar a Frigelar para verificar se a empresa autoriza a reentrega ou devolução do produto. Para reentrega, o técnico N2 irá informar a transportadora e a mesma efetuará a entrega ao titular. Para devolução, o técnico N2 autoriza a devolução para a filial de origem, encaminha o chamado para Cancelamento e passa a ser tratado uma devolução, como Cancelamento.
+
+
+
+
+
+5.0.  Responsabilidades
+5.1 Atendente SAC / MKTP / Vendedor
+Responsável pelo atendimento inicial, triagem do caso e, se necessário, abertura de chamado de Atraso de Entrega para o N2, incluindo todas as informações e dados necessários.
+
+5.2 Técnico N2
+Responsável pelo recebimento, conferência e tratativa dos casos Atraso de Entrega, mantendo contato com o transportadora até o encerramento do chamado. Bem como, o direcionamento e comunicação de demandas às demais áreas quando necessário.
+
+6.0. Disposições Gerais
+Casos especiais não citados no presente procedimento e/ou fluxo abaixo serão analisados pela gestão que se posicionará a respeito.
+A próxima revisão deste procedimento acontecerá quando houver mudança de processo e/ou alteração por determinação da gestão responsável.
+O presente Procedimento Operacional Padrão revoga todas as disposições anteriores.
+
+ 
+
+
+Este fluxo está disponível em nosso sistema Qualitor em Execução de processo > Análise de Instância > Visualização gráfica
+
+
+
+
+Porto Alegre, 28 de novembro de 2025.
+
+
+
+Procedimento Operacional Cancelamento	Número: 001
+	Área: N2 
+	Vigência: 28/11/2025
+
+						
+
+1.0.	Objetivo 
+Descrever o processo logístico para tratativa de ocorrências oriundas de cancelamento. Guia para execução de cada etapa, garantindo a qualidade e padronização do processo.
+
+2.0. Abrangência 
+Este documento será utilizado por todos os colaboradores das áreas de Atendimento ao Cliente, Canais Digitais, Logística e Comercial.
+
+3.0. Distribuição 
+Estará disponível para todas as áreas.
+
+4.0. Procedimentos
+Os procedimentos descritos a seguir demonstram em detalhes o processo realizado pelos envolvidos na análise, execução e finalização do atendimento ao cliente no serviço Cancelamento.
+
+4.1. Triagem de atendimento
+O responsável pelo atendimento inicial (SAC/MKTP/Vendedor) filtra o motivo do contato do cliente e a forma de reposição ou ressarcimento conforme o fator de devolução. 
+
+Fator Cliente: Para os casos em que o motivo de devolução é oriundo do cliente, haverá apenas a opção de reembolso. 
+Cliente MKTP: Sempre ofertar o reembolso liberado via portal (até porque ele pode ser reembolsado em qualquer momento pelos portais). 
+
+Fator Frigelar: Para os casos em que motivo de devolução é de origem da Frigelar, poderá ser ofertada a reposição ou o reembolso ao cliente (APENAS PARA CLIENTE SITE FRIGELAR E VENDEDOR). 
+
+4.1.1. Confirmação de entrega
+O atendente consulta o SIMFRETE / e site da transportadora para verificar se mercadoria foi entregue.
+Caso seja confirmado que a entrega não foi efetuada, o responsável inicial pelo atendimento abre um chamado de Cancelamento para o N2. Neste chamado irá incluir todos os dados necessários, motivo de Cancelamento/Barrar Entrega. 
+
+ 
+
+Exemplo: 
+ 
+
+Se ocorreu a entrega, é solicitado o comprovante de entrega assinado para quem recebeu, encaminha para a validação do cliente e finaliza o atendimento.
+
+4.2. Tratativa do chamado de cancelamento
+Após aberto o chamado, setor o N2 realiza uma análise dos dados informados e contata a transportadora para barrar a entrega.
+
+ 4.2.1. Procedimentos da Transportadora
+A transportadora irá localizar a NF, travar a entrega e gerar CT-e (Conhecimento de Transporte Eletrônico) de devolução. Após, informará ao técnico do N2 o prazo de devolução.
+
+4.2.2. Criação de OD e emissão de NFD 
+Técnico do N2 recebe o prazo de devolução e/ou comprovante de posse de mercadoria da transportadora, anexa esses documentos ao chamado de Cancelamento, inicia no sistema AX a criação de OD e direciona a etapa do chamado para a garantia aprovar a OD e emitir a NFD. Para casos de cliente com IE (Inscrição Estadual ativa), é necessário sempre solicitar o comprovante de recusa no portal do Sefaz antes de iniciar a criação de uma OD.
+
+4.2.3. Liberação de crédito
+Após a aprovação da OD pela garantia, o valor do crédito ficará disponível na conta do cliente fica disponível. Após, assentará essas informações no chamado e direcionará para o responsável da etapa dar sequência ao ressarcimento ou reposição ao cliente, de acordo com a origem de seu pedido. 
+
+4.2.4. Ressarcimento ou Reposição
+O responsável pelo chamado de Cancelamento irá observar a informação inclusa no chamado e irá avançar etapa para o reembolso ou nova OV (reposição), conforme opção escolhida pelo cliente.
+
+Para pedidos de site, o cliente pode optar por reposição quando o erro for da Frigelar ou pelo reembolso, que seguirá para análise financeira, sendo obrigatório anexar dados bancários (nome, banco, agência e conta) em casos de pagamento via PIX, boleto ou dinheiro.
+Para casos onde a origem da venda é MKTP, o responsável pelo chamado de Cancelamento irá direcionar etapa para o ATENDIMENTO MKTP, e a área de Marketplace seguirá com a tratativa de reembolso via portal. 
+
+Para casos onde a origem da venda é Vendedor, o responsável pelo chamado irá orientar o vendedor a atender o cliente com uma nova OV caso o cliente solicite uma reposição e caso o cliente queira o reembolso, os dados bancários do cliente devem estar em anexo para que o chamado passe para a etapa do Contas a Receber e/ou Contas a Pagar. 
+
+4.2.5. Comunicação ao cliente e encerramento do chamado
+Após finalizado o processo de ressarcimento ou reposição, a área responsável (E-commerce ou Contas a Pagar/Receber) irá assentar no chamado de sua etapa e o técnico do N2 comunicará o cliente e encerrará seu chamado de Cancelamento. Ao cliente será também enviado uma mensagem por e-mail ou whatsapp para informar a finalização do seu atendimento. 
+
+5.0.  Responsabilidades
+Antes da finalização, comunicar o cliente sobre a nova OV emitida ou o reembolso realizado com a carta de cancelamento em anexo. 
+
+5.1 Técnico N2
+Responsável pelo recebimento, conferência e tratativa do chamado de Cancelamento. Bem como, o direcionamento e comunicação de demandas às demais áreas.
+
+
+
+
+5.2 CD de Origem
+Acompanhar e receber as solicitações referentes à o bloqueio de entrega em cópia nos e-mails encaminhado para o transportador. 
+
+5.3 Adm. Filial
+Efetuar a liberação do valor na conta do cliente para uso do vendedor, caso o mesmo não consiga utilizar em uma reposição ao cliente, antes do item chegar ao CD de origem.
+
+5.4 Contas a Pagar / Receber 
+Responsável por conferir e efetuar as solicitações de ressarcimento/reembolso/estorno em conformidade dentro desse procedimento.
+
+5.5 E-commerce
+Responsável por emitir a nova OV quando necessário dentro desse procedimento. 
+
+6.0. Disposições Gerais
+Casos especiais não citados no presente procedimento e/ou fluxo abaixo serão analisados pela gestão que se posicionará a respeito.
+A próxima revisão deste procedimento acontecerá quando houver mudança de processo e/ou alteração por determinação da gestão responsável.
+O presente Procedimento Operacional Padrão revoga todas as disposições anteriores.
+
+ 
+
+Este fluxo está disponível em nosso sistema Qualitor em Execução de processo > Análise de Instância > Visualização gráfica
+
+
+Porto Alegre, 28 de novembro de 2025.
+
+
+
+Procedimento Operacional Extravio 	Número: 001
+	Área: N2 
+	Vigência: 01/12/2025
+
+					
+
+1.0.	Objetivo 
+Descrever o processo logístico para tratativa de ocorrências oriundas de extravio de produto. Guia para execução de cada etapa, garantindo a qualidade e padronização do processo. 
+
+2.0. Abrangência 
+Este documento será utilizado por todos os colaboradores das áreas de Atendimento ao Cliente, Canais Digitais, Logística, Financeiro e Comercial.
+
+3.0. Distribuição 
+Todas as áreas da empresa.
+
+4.0. Procedimentos
+O procedimento descrito a seguir demonstra em detalhes o processo realizado pelos envolvidos na análise, execução e finalização do atendimento ao cliente no serviço Extravio de Produto. 
+
+ 4.1. Triagem de Atendimento
+Cliente entra em contato com o SAC, que irá realizar questionamentos para identificar qual a solicitação do mesmo.
+Após os questionamentos, sendo identificado pode se tratar de um extravio de produto, será aberto o chamado de Extravio ao N2.
+
+
+ 
+
+
+
+
+
+
+
+Exemplo: 
+ 
+
+4.2. Análise e tratativa N2
+Técnico N2 recebe o chamado, analisa se contém todas as informações e fotos (caso haja). 
+
+4.2.1. O cliente NÃO contribuinte e que NÃO recebeu a mercadoria, o técnico do N2 confirma através do romaneio de coleta se a NF foi coletada com todos os volumes pela transportadora, confirmando esta informação, questiona a transportadora se pode seguir com o processo indenizatório, a transportadora concordando com o debito, é criada a OD de extravio de acordo com seus parâmetros. 
+A transportadora não concordando com o debito ou não respondendo dentro de um prazo de 72 horas, é encaminhado um e-mail aos focais logísticos de cada transportadora (time tracking) junto ao gerente log de fretes, explicando o ocorrido e questionando se podemos dar baixa como perda.
+Caso seja autorizado a baixa por perda, encaminhamos um e-mail a gerente Gabriela Luvizetto e ao analista de atendimento ao cliente Eduardo Endrigo Souza para que sigam com o PROCESSO DE PERDA. 
+
+4.2.2. Para cliente contribuinte que NÃO recebeu a mercadoria, é necessário que o mesmo realize a recusa eletrônica da nota fiscal no site do SEFAZ (para casos de extravio total) e nos envie o PDF. Nestes casos, a entrada da nota (criação de OD) será realizada pelo time SAC, com a recusa do cliente, não sendo necessário emissão de NFD. 
+
+4.2.3. Para casos de clientes contribuintes que receberam parcialmente as mercadorias, é necessário realizar a emissão da NFD da mercadoria faltante e nos encaminhar via PDF. Para estes casos, o N2 avançara etapa para a GARANTIA CORPORATIVA – CLIENTE COM IE emitir um ESCOPO com o item faltante para emissão de NFD e enviará ao cliente e após o recebimento da nota do cliente, a GARANTIA CORPORATIVA – CLIENTE COM IE irá corrigir e validar. Com a NFD validada a o SAC dará entrada na NFD emitida pelo cliente que liberará o crédito para atendimento do cliente. 
+Em casos de extravio parcial, antes de cobrarmos a transportadora pela indenização do item faltante, é necessário realizar uma análise no CD, solicitada por e-mail, para confirmar se o material não ficou no CD de origem. 
+
+4.2.4. Com o crédito liberado o N2 irá verificar o canal de venda do cliente. 
+
+4.2.4.1. Para casos onde a venda foi via MKTP, será reembolsado o valor parcial ou total para o cliente através do portal de venda.
+
+4.2.4.2. Para os clientes oriundos de venda E-commerce, o N2 irá atender o cliente conforme sua solicitação na abertura do chamado (ressarcimento / reposição), essas etapas estarão disponíveis dentro do chamado. Caso o cliente opte pela reposição, assim que o E-commerce gerar a nova OV, será enviado para separação, o CD irá faturar a mercadoria e expedi-la. Após este processo, o N2 irá assentar a informação no chamado, avisar o cliente o novo número de NF faturada e encerrá-lo.
+
+4.2.4.3 Para casos onde a venda foi de vendedor, e o cliente querer a reposição, será formalizado um e-mail ao vendedor junto ao seu gerente, com a orientação de atendimento ao cliente. Após o vendedor emitir a nova OV para o cliente, o mesmo deve informar para que essa informação seja anexada no chamado de Extravio e o chamado seja encerrado.
+
+4.2.5. Se a solicitação do cliente de vendedor for de ressarcimento, será avançado etapa dentro do chamado de extravio, para o setor de Contas a Receber (pagamentos em cartão) ou Contas a Pagar (pagamentos em PIX ou boleto), solicitando o ressarcimento do cliente, mas para isso ocorrer, é necessário que os dados bancários estejam em anexo. Assim que confirmado o estorno/reembolso, o N2 irá assentar a informação no chamado e encerrá-lo.
+
+5.0.  Responsabilidades
+5.1 Atendente SAC
+Responsável pelo atendimento inicial, triagem do caso e, se necessária abertura de chamado de Extravio de Produto para o N2.
+
+5.2 Técnico N2
+Responsável pelo recebimento, conferência e tratativa do chamado de Extravio de Produto. Bem como, o direcionamento e comunicação de demandas às demais etapas.
+
+5.3 Filial de Origem
+Acompanhar e dar assistência às solicitações referentes à romaneio de coleta e análise dentro do CD da filial, dentro desse procedimento realizado por e-mail. 
+
+5.4 Garantia
+Responsável pelo processo de aprovação de OD, emissão de ESCOPO (caso seja necessário) e validação de NFD emitida pelo cliente.
+
+5.5 Contas a Pagar / Receber 
+Responsável por conferir e efetuar as solicitações de ressarcimento em conformidade dentro desse procedimento. Responsável também por anexar o comprovante de reembolso (carta de cancelamento) ao cliente.
+
+5.6 E-commerce
+Responsável por emitir a nova OV quando necessário dentro desse procedimento. 
+
+6.0. Disposições Gerais
+Casos especiais não citados no presente procedimento e/ou fluxo abaixo serão analisados pela gestão que se posicionará a respeito.
+Casos especiais não citados no presente procedimento e/ou fluxo abaixo serão analisados pela gestão e pelas áreas responsáveis que se posicionarão a respeito.
+A próxima revisão deste procedimento acontecerá quando houver mudança de processo e/ou alteração por determinação da gestão responsável.
+O presente Procedimento Operacional Padrão revoga todas as disposições anteriores.
+
+
+ 
+
+Este fluxo está disponível em nosso sistema Qualitor em Execução de processo > Análise de Instância > Visualização gráfica
+
+
+
+Porto Alegre, 01 de dezembro de 2025.
+
+
+Procedimento Operacional Produto Avariado	Número: 001
+	Área: N2 
+	Vigência: 28/11/2025
+					
+
+1.0.	Objetivo 
+Descrever o processo logístico para tratativa de ocorrências oriundas de produtos avariados. Guia para execução de cada etapa, garantindo a qualidade e padronização do processo. 
+
+2.0. Abrangência 
+Este documento será utilizado por todos os colaboradores das áreas de Atendimento ao Cliente, Canais Digitais, Logística e Comercial.
+
+3.0. Distribuição 
+Equipes das áreas descritas no tópico “2.0”.
+
+4.0. Procedimentos
+O procedimento descrito a seguir demonstra em detalhes o processo realizado pelos envolvidos na análise, execução e finalização do atendimento ao cliente no serviço Produto Avariado. 
+
+ 4.1. Triagem de Atendimento
+Cliente entra em contato com o SAC/MKTP, que irá realizar questionamentos para identificar qual a solicitação do mesmo.
+Após os questionamentos, sendo identificado que se trata de produto avariado, será tratado da seguinte forma:
+
+4.1.1. É aberto o chamado de Produto Avariado para o N2, anexando as fotos da avaria, da embalagem, informando se o cliente fez a ressalva na nota fiscal ou não, verificará se o produto é elegível a postagem ou coleta dos Correios disposto no subtópico 4.2.5, se não estiver elegível o N1/N2 MKTP gera OG com ou sem ressalva.
+
+ 
+
+Exemplo: 
+  
+
+
+4.2. Análise e tratativa N2
+Técnico N2 recebe o chamado, analisa se contém todas as informações e fotos comprobatórias. Caso não estejam completas, o chamado retorna para a área responsável (no caso de clientes e-commerce, o próprio solicitante solicita as informações faltantes diretamente ao cliente). Se os dados estiverem completos, N2 verifica se cliente é contribuinte.
+
+4.2.1. O cliente NÃO sendo contribuinte e NÃO recebeu a mercadoria, o N2 contata a transportadora para confirmar se a mercadoria foi recusada. Caso sim, o N2 cria a OD com ressalva e nos parâmetros de avaria para o setor de garantia seguir com a aprovação e indenização, emissão da NFD e liberação do crédito para atendimento ao cliente.4.2.2. O cliente NÃO é contribuinte recebeu a mercadoria, o N2 verifica o chamado e se estiver no prazo de 7 dias corridos contando a partir da data de entrega até a data da reclamação, o N2 avalia se o produto pode ser postado no correio, caso tiver 1 m³ e 30 quilos gera o código de postagem ou coleta pelo correio, após a postagem ou coleta, é criado a OD sem ressalva (de acordo com os parâmetros de avaria) para o setor de garantia aprovar a OD, emitir a NFD e liberação do crédito para atendimento ao cliente.
+Se o produto não estiver dentro das especificações para devolução pelo correio, o N2 cria a OD sem ressalva (de acordo com os parâmetros de avaria), após a garantia aprova a OD, emite a NFD e encaminha o chamado descrito na seção 4.2.5.
+
+4.2.3. Para cliente contribuinte que NÃO recebeu a mercadoria (e tenha recusado todos os itens da NF), é necessário que o mesmo realize a recusa eletrônica da nota fiscal no site do SEFAZ e nos envie o PDF. Após receber a recusa no Sefaz, o N2 cria a OD COM RESSALVA (de acordo com os parâmetros de avaria) para o setor de garantia aprovar, emitir a NFD e liberar o crédito para atendimento ao cliente.
+
+4.2.4. Clientes contribuintes que receberam as mercadorias, é necessário solicitar para a garantia, avançando para a etapa especifica para isso, um escopo da NFD que deve ser emitida pelo cliente. Após o cliente emitir a NFD de acordo com o ESCOPO enviado, encaminhar o anexo no chamado para conferência e estando tudo certo, será encaminhado para o setor de Garantia solicitar a coleta reversa. Estando tudo certo, o responsável pela etapa GARANTIA CORPORATIVA - CLIENTE IE avança etapa do chamado para o setor de garantia solicitar a coleta, após a confirmação de coleta A GARANTIA gera a OD através da etapa de INSCRITURAÇÃO DE NFD dando a entrada na NFD emitida pelo cliente, e envia para a etapa da garantia aprovar a OD e liberação do crédito para atendimento ao cliente.
+
+4.2.5 Nos atendimentos em que há a necessidade de coleta da mercadoria, o setor de Garantia irá contatar a transportadora e acompanhar até que a mesma retire no local de coleta, para isso, é sempre aberto um outro chamado pararelo ao Qualitor no qual é acompanhado pela garantia. Após isso, irá confirmar a coleta no chamado e direcionar para o N2 seguir com a tratativa.
+
+4.2.6 Após ter a coleta confirmada, o N2 irá realizar o atendimento ao cliente. Se a solicitação for de ressarcimento, será avançado etapa no o setor de Contas a Receber para criar o voucher e posteriormente avançado para o setor de Contas a Pagar, pagamentos em PIX ou boleto exigem dados bancários do cliente anexados no chamado, já pagamentos em cartão de crédito, é realizado o estorno pelo Contas a Receber. Caso a solicitação seja de troca (para clientes que compraram no site da Frigelar), será avançado etapa para o E-commerce solicitando a nova OV para atender o cliente, e em casos de loja, nas quais o cliente possui um vendedor, encaminhamos um e-mail ao vendedor solicitando que atenda ao cliente e envie o novo número de OV que atender o cliente para finalização do chamado. 
+
+4.2.7 Quando o ressarcimento do cliente for realizado, N2 enviará um e-mail com a carta de cancelamento em anexo, informando ao cliente e o chamado será finalizado, e que seu caso foi resolvido.
+
+4.2.8 Para os casos de vendedor, que o cliente solicita reposição da mercadoria, o N2 aguarda o faturamento da nova nota fiscal e encaminha por e-mail para o cliente, informando o novo prazo de entrega. Chamado é encerrado após esta etapa.
+
+4.2.9 Para os casos em que reclama fora do prazo, será necessário avançar etapa para o N3 de avaria avaliar se o chamado será tratado ou terá o atendimento encerrado.
+
+5.0.  Responsabilidades
+5.1 Atendente SAC/MKTP
+Responsável pelo atendimento inicial, triagem do caso e, a abertura de chamado de Produto Avariado para o N2.
+
+5.2 Técnico N2
+Responsável pelo recebimento, conferência e tratativa do chamado de Produto Avariado. Bem como, o direcionamento e comunicação de demandas às demais áreas.
+
+
+
+5.3 Filial de Origem
+Acompanhar e dar assistência às solicitações referentes à NFD dentro desse procedimento que são realizadas via e-mail do N2. 
+
+5.4 Garantia
+Acompanhar e assistir o processo de coleta da mercadoria.
+
+5.5 Contas a Pagar / Receber 
+Responsável por conferir e efetuar as solicitações de ressarcimento em conformidade dentro desse procedimento. 
+
+5.6 E-commerce
+Responsável por emitir a nova OV quando necessário dentro desse procedimento (para casos e-commerce). 
+
+6.0. Disposições Gerais
+Casos especiais não citados no presente procedimento e/ou fluxo abaixo serão analisados pela gestão e pelas áreas responsáveis que se posicionarão a respeito.
+A próxima revisão deste procedimento acontecerá quando houver mudança de processo e/ou alteração por determinação da gestão responsável.
+O presente Procedimento Operacional Padrão revoga todas as disposições anteriores.
+
+ 
+
+
+
+Este fluxo está disponível em nosso sistema Qualitor em Execução de processo > Análise de Instância > Visualização gráfica
+
+Porto Alegre, 28 de novembro de 2025.
+
+
+
+
+Procedimento Operacional 
+Produto Errado	Número: 001
+	Área: N2 
+	Vigência: 02/12/2025 
+					
+
+1.0.	Objetivo 
+Descrever o processo logístico para tratativa de ocorrências oriundas de divergência de produto. Guia para execução de cada etapa, garantindo a qualidade e padronização do processo. 
+
+2.0. Abrangência 
+Este documento será utilizado por todos os colaboradores das áreas de Atendimento ao Cliente, Canais Digitais, Logística, Financeiro e Comercial.
+
+3.0. Distribuição 
+Todas as áreas da empresa.
+
+4.0. Procedimentos
+O procedimento descrito a seguir demonstra em detalhes o processo realizado pelos envolvidos na análise, execução e finalização do atendimento ao cliente no serviço de Produto Errado. 
+
+ 4.1. Triagem de Atendimento
+Cliente entra em contato com o SAC / MKTP / Vendedor, que irá realizar questionamentos para identificar qual a divergência ocorrida.
+Após os questionamentos iniciais, será solicitada a verificação da(s) etiqueta(s) do(s) volume(s).
+
+4.1.1. Caso o destinatário na etiqueta esteja divergente (com nome de outro cliente), será aberto o chamado de Produto Errado com a informação de que é uma Inversão de Volumes, seguindo o fluxo deste processo. 
+
+ 
+
+
+
+
+Exemplo: 
+ 
+
+
+
+4.2. Análise e tratativa N2
+Técnico N2 recebe o chamado, analisa se contém todas as informações e imagens comprobatórias. Caso não estejam completas, o chamado retorna para o solicitante responsável anexar ao chamado as informações faltantes. Se os dados estiverem de acordo, N2 irá seguir com a tratativa solicitando a destroca da mercadoria à transportadora.
+
+Inversão de volumes > identificar o segundo cliente > contatar o segundo cliente > rastrear a NF do segundo cliente e encaminhar o e-mail para a transportadora com todas as informações, inclusive se é para destrocar ou devolver uma ou as duas notas.
+
+4.2.1. Nos casos em que a transportadora confirmar que pode ser feita a destroca, ela informará o prazo deste processo ao técnico N2 e este irá confirmar com o cliente ou vendedor do cliente o interesse pela mercadoria e, caso positivo, acompanhará a destroca até sua finalização.  
+
+4.2.2. Casos em que o cliente não tenha mais interesse em receber a mercadoria, o técnico N2 irá verificar o canal de venda e orientar o cliente ou vendedor a disponibilizar o produto para a transportadora coletar e, assim alinhar com a transportadora para devolução de um dos volumes invertidos ou dos dois. Após os produtos serem coletados nos clientes, o técnico N2 irá gerar a OD com os parâmetros adequados, junto as evidências de que o produto está em transporte. Após a OD ser aprovada pela GARANTIA CORPORATIVA, a garantia segue monitorando a devolução pela a NFD, e em seguida o técnico N2 encerra o chamado.
+
+4.2.4. Sendo a venda oriunda dos canais MKTP o reembolso é liberado diretamente pelo portal da compra, a não ser que ocorra a destroca dos itens. 
+
+Sendo cliente de vendedor, estes serão orientados a atender o cliente com uma reposição, e após o faturamento da nova OV, o vendedor precisa informar para que seja registrado no chamado e possivelmente finalizado. Caso o cliente do vendedor queira ser reembolsado/estornado, o mesmo precisa ter seus dados bancários em anexo no chamado (somente para reembolso, pois estorno não é necessário). 
+
+Se a venda for oriunda do canal E-commerce, o técnico N2 verificará na a descrição do chamado qual a opção irá melhor atender o cliente dentre reembolso e reposição. Caso o cliente opte por reembolso, o técnico N2 avançará etapa reembolso/estorno ao Contas a Pagar / Receber. Quando finalizado este processo, o técnico N2 informará ao cliente e encerrará o chamado de Produto errado - Inversão de Volumes. Caso o cliente opte pela reposição da mercadoria, o técnico N2 avançará etapa para o e-commerce emitir uma nova OV, após a nova OV ser faturada, será informado ao cliente e o chamado de Inversão de Volumes será finalizado. 
+
+4.2.5. Caso o destinatário na etiqueta não esteja divergente será aberto um chamado de Produto Errado ao N2, incluindo as informações necessárias e anexando imagens da(s) etiqueta(s), confirmando a divergência.
+
+ 
+
+Exemplo: 
+ 
+4.2.6. Análise e tratativa N2
+Técnico N2 recebe o chamado, analisa se contém todas as informações e imagens comprobatórias. Caso não estejam completas, o chamado retorna para a área do solicitante para atualizar as informações. Se os dados estiverem de acordo, N2 irá seguir com a tratativa verificando se há possibilidade de postagem/coleta do produto, se caso sim, é gerado um código de postagem/coleta para o correio, caso seja um produto de grande porte e que não se enquadre no serviço oferecido pelo correio é solicitando por transportadora.  
+
+5.0. Para clientes que são PJ com IE ativo, sendo para postagem no correio ou coleta por transportadora, é necessário que primeiro a garantia faça o ESCOPO para emissão da NFD e o cliente seja orientado a fazer a NFD conforme documento, enviado pela etapa da garantia CLIENTE CORPORATIVA – CLEINTE COM IE. 
+
+5.1. Para os casos em que não é possível a postagem do produto para retorno ao CD, e o cliente NÃO tem IE ATIVO, será criada uma OD pelo técnico N2, assim que for aprovada pela garantia corporativa será emitida NFD, e será avançada as etapas dentro do chamado para o setor coleta reversa, por sua vez, o responsável pela etapa enviará a NFD ao transportador para que solicite a coleta reversa da mercadoria. O transportador coletará a mercadoria e informará à garantia. Após a confirmação de coleta, a garantia devolverá o chamado ao N2 para darmos seguimento ao atendimento ao cliente. 
+
+5.1.2. Para os casos onde é possível a postagem ou coleta do produto no domicílio do cliente, é gerado um código de postagem pelo próprio N1 ou/e N2, onde o cliente recebe automaticamente o código de postagem/coleta por e-mail, e clientes de MKTP é informado pelo próprio portal da compra.
+O N2 acompanhará a postagem do produto ou coleta domiciliar até a efetivação da mesma pelo chamado na etapa SAC - ACOMPANHAR POSTAGEM - REVERSA CORREIOS. 
+
+5.1.3. Após a postagem ou coleta dos Correios, o N2 gera uma OD nos parâmetros adequados e o chamado é encaminhado para a garantia aprovar esta OD, e assim que for aprovada, é emitida a NFD e o valor fica disponível na conta do cliente.
+
+5.2.1 Após a confirmação da coleta ou da postagem, o N2 irá verificar qual o canal de venda do cliente. 
+
+5.2.2. Sendo a venda oriunda dos canais MKTP o reembolso é liberado diretamente pelo portal da compra, a não ser que ocorra a destroca dos itens. 
+
+Sendo cliente de vendedor, estes serão orientados a atender o cliente com uma reposição, e após o faturamento da nova OV, o vendedor precisa informar para que seja registrado no chamado e possivelmente finalizado. Caso o cliente do vendedor queira ser reembolsado/estornado, o mesmo precisa ter seus dados bancários em anexo no chamado (somente para reembolso, pois estorno não é necessário). 
+
+Se a venda for oriunda do canal E-commerce, o técnico N2 verificará com o cliente qual a opção irá melhor lhe atender dentre reembolso e reposição. Caso o cliente opte por reembolso, o técnico N2 avançará etapa reembolso/estorno ao Contas a Pagar (quando o pagamento é realizado no PIX, boleto e dinheiro) e Contas Receber estorno (quando o pagamento é realizado no cartão). Quando finalizado este processo, o técnico N2 informará ao cliente e encerrará o chamado de Produto errado – Divergência de Produto. Caso o cliente opte pela reposição da mercadoria, o técnico N2 avançará etapa para o e-commerce emitir uma nova OV, após a nova OV ser faturada, será informado ao cliente e o chamado de Divergência de Produto será finalizado. 
+
+6.0.  Responsabilidades
+6.1 Atendente SAC
+Responsável pelo atendimento inicial, triagem do caso e, se necessário, oferta de desconto ou abertura de chamado de Produto errado - Divergência de Produto para o N2. Desconto só é ofertado em casos na qual é constatado divergência (filial encaminha errado ou erros de anúncio) e o produto é da marca EOS.
+
+Para casos em que apenas o número de serial do ar-condicionado está divergente, é necessário abrir um chamado no setor fiscal para correção, porém, antes disso, é fundamental verificar se o modelo está correto e confirmar ambos os números de serial, evitando retrabalho.
+
+Para casos em que o produto errado foi instalado e o cliente solicita reembolso da desinstalação, é necessário que ele encaminhe um documento com o orçamento, esse material será enviado ao N3 para análise, porém somente após validarmos que o erro foi de nossa responsabilidade — seja pelas etiquetas de transporte ou pela confirmação do CD — e, após essa validação, também devemos solicitar o comprovante bancário para prosseguir com o reembolso.
+
+Para casos em que há erro de faturamento na NF e não existe coleta, pois o produto permanece no CD, é necessário emitir uma NFD para justificar o estoque com os parâmetros adequados; somente após essa emissão conseguimos gerar uma nova NF de venda para despachar o produto que ficou na filial de origem.
+
+6.2 Técnico N2
+Responsável pelo recebimento, conferência e tratativa do chamado de Divergência de Produto (Produto errado). Bem como, o direcionamento e comunicação de demandas às demais áreas.
+
+6.3 Filial de Origem
+Acompanhar e dar assistência às solicitações referentes à romaneio, análises e conferências no CD, dentro desse procedimento. 
+
+6.4 Garantia
+Acompanhar e assistir o processo de coleta da mercadoria, aprovações de OD, emissão de ESCOPO para NFD de cliente com IE.
+
+6.5 Contas a Pagar / Receber 
+Responsável por conferir e efetuar as solicitações de ressarcimento em conformidade dentro desse procedimento. 
+
+6.6 E-commerce
+Responsável por emitir a nova OV quando necessário dentro desse procedimento. 
+
+7.0. Disposições Gerais
+Casos especiais não citados no presente procedimento e/ou fluxo abaixo serão analisados pela gestão que se posicionará a respeito.
+A próxima revisão deste procedimento acontecerá quando houver mudança de processo e/ou alteração por determinação da gestão responsável.
+O presente Procedimento Operacional Padrão revoga todas as disposições anteriores.
+
+
+ 
+
+Este fluxo está disponível em nosso sistema Qualitor em Execução de processo > Análise de Instância > Visualização gráfica
+
+
+Porto Alegre, 02 de dezembro de 2025.
+
+
+
+
+Contato das transportadoras
+Transportadora	E-Mail transportadora	Focal logística Frigelar
+5LOG	sacexpedicao3@5log.com.br; sacexpedicao2@5log.com.br	amandamartins@frigelar.com.br
+AGILE / PALHETA	paulo.palheta1721@gmail.com	amandamartins@frigelar.com.br
+ALFA TRANSPORTES	thaina.ribeiro@alfatransportes.com.br 	amandamartins@frigelar.com.br
+ALT BRASIL	comercialcba4@altbrasil.com.br	matheusoliveira@frigelar.com.br
+ATUAL CARGAS	cs.cliente02@atualcargas.com.br	amandamartins@frigelar.com.br
+BRASIL WEB	renata.cordeiro@brasilweb.log.br	fernandocamargo@frigelar.com.br
+BRASPRESS	poa.sac11@braspress.com	jefersonsoares@frigelar.com.br
+CARRIERS	https://cliente.carriers.com.br/login	
+CARVALIMA	comercial13.cba@carvalima.com.br;gerencia.cgb@carvalima.com.br 	matheusoliveira@frigelar.com.br
+CCA	brenda.settim@ccaexpress.com.br; ingrid.ribeiro@ccaexpress.com.br	amandamartins@frigelar.com.br
+CORCINI EXPRESS	corciniexpress@gmail.com	matheusoliveira@frigelar.com.br
+CORREIOS	elieziopereira@correios.com.br;suvenrs@correios.com.br	amandamartins@frigelar.com.br
+DIÁLOGO LOGÍSTICA	cliente@dialogologistica.com.br - franciele.silva@dialogologistica.com.br - Devoluções	jefersonsoares@frigelar.com.br
+DOMINALOG	BARRAR ENTREGA: barrar.entrega@dominalog.com.br DEMAIS SOLICITAÇÕES: atendimento@dominalog.com.br	jefersonsoares@frigelar.com.br
+EXPRESSO RIO VERMELHO	sac06@expressoriovermelho.com.br	amandamartins@frigelar.com.br
+FAVORITA	klebsonhenrique@favorita.com.br	amandamartins@frigelar.com.br
+GBEX	saclog4@guanabaraexpress.com.br	amandamartins@frigelar.com.br
+GFL / MAGALOG	atendimento.frigelar@gflogistica.com.br; rodrigo.goncalves@magazineluiza.com.br	fernandocamargo@frigelar.com.br
+GFW	sueli@gfwtransportes.com.br; william@gfwtransportes.com.br; amanda@gfwtransportes.com.br; juliana@gfwtransportes.com.br	amandamartins@frigelar.com.br
+JADLOG	coordenacao.sac@usejadlog.com.br; atendimento07@usejadlog.com.br	matheusoliveira@frigelar.com.br
+JAMEF	coleta@poa.jamef.com.br; pendencia@gyn.jamef.com.br; jessica.mattoso@cwb.jamef.com.br	matheusoliveira@frigelar.com.br
+JEOLOG / JEONCEL	sac.es@jeolog.com.br; sac03.es@jeolog.com.br; operacional01.es@jeolog.com.br; sac05.go@jeolog.com.br; sac08.go@jeolog.com.br	jefersonsoares@frigelar.com.br
+LEITE EXPRESS	sacsp18@leiteexpress.com.br	amandamartins@frigelar.com.br
+LOGGI	PLATAFORMA DA LOGGI vitor.alves@loggi.com	matheusoliveira@frigelar.com.br
+LOGCHIO	marcioferraz@logchio.com.br	amandamartins@frigelar.com.br
+LOGPLACE	Posição de entrega e barrar: atendimentone02@logplace.com.br	fernandocamargo@frigelar.com.br
+	Gestão suporte: juliana.costa@logplace.com.br	
+	Gestão: marta.ferreira@logplace.com.br	
+	Extravio: ressarcimentone@logplace.com.br	
+M.A.S	coletassa@viptransportes.log.br	fernandocamargo@frigelar.com.br
+	coletafsa@viptransportes.log.br	
+	viptransportes@viptransportes.log.br	
+	sac@viptransportes.log.br	
+	logisticafsa@viptransportes.log.br	
+MINDLOG	focal.frigelar@mindlog.com.br; jessicasp@mindlog.com.br	fernandocamargo@frigelar.com.br
+MIRA	atendimento1@mira.com.br	matheusoliveira@frigelar.com.br
+MMA	sac01.es@mmacargas.com.br; sac.es@mmacargas.com.br; operacional.es@mmacargas.com.br	amandamartins@frigelar.com.br
+MODULAR	atendimento.frigelar@modular.com.br	fernandocamargo@frigelar.com.br
+NACIONAL	campinagrande@transportesnacional.com.br; campinagrande@transportesnacional.com.br; natal@transportesnacional.com.br; recife@transportesnacional.com.br; paulista@transportesnacional.com.br; maceio@transportesnacional.com.br	amandamartins@frigelar.com.br
+OURO NEGRO	pontofocal5@ouronegro.com	jefersonsoares@frigelar.com.br
+PACIFICO LOG	sac15.sao@pacificolog.com.br 	jefersonsoares@frigelar.com.br
+PAJUÇARA	grazielly.alvis@pajunet.com.br	fernandocamargo@frigelar.com.br
+PANEX	francisco.neto@transpanex.com.br; rafaela.recoba@transpanex.com.br	amandamartins@frigelar.com.br
+PASSARO TRANSPORTES	edcarlos@passarotransportes.com.br	matheusoliveira@frigelar.com.br
+REDE SUL	sac10@redesullog.com.br	
+RISSO	comercial.bb@risso.com.br; supervisao.sac@risso.com.br; coletas.atibaia@risso.com.br; sac02.bb@risso.com.br; comercial.bb04@risso.com.br	fernandocamargo@frigelar.com.br
+RODOGARCIA	grc5@rodogarcia.com.br	matheusoliveira@frigelar.com.br
+RODONAVES	michele.lima@rte.com.br; marcio.oliveira@rte.com.br; cecilia.oliveira@rte.com.br; jaqueline.souza@rte.com.br; pesquisa.128@paulineris.com.br	jefersonsoares@frigelar.com.br
+RODOWEB	sac2@rodoweb.com.br	jefersonsoares@frigelar.com.br
+SÃO MIGUEL	https://portaldocliente.expressosaomiguel.com.br:2041/SearchUnits	matheusoliveira@frigelar.com.br
+SERVLOG	comercial@servlogpb.com.br; jose.carlos@servlogpb.com.br	fernandocamargo@frigelar.com.br
+SHIPPIFY	Portal Shippify	fernandocamargo@frigelar.com.br
+TECMAR	amanda.luz@tecmartransportes.com.br; daniela.cruz@tecmartransportes.com.br	fernandocamargo@frigelar.com.br
+TERMACO	rafael.machado@termaco.com.br; karolayne.souza@termaco.com.br	amandamartins@frigelar.com.br
+TLOG/TMA/VENKON	atendimentone@tlogne.com.br; karoline.martins@tlog.com.br	
+TOTAL EXPRESS	suporte.cx@totalexpress.com.br; ana.freire@parceirostex.com.br	amandamartins@frigelar.com.br
+TODOBRASIL	sac20@todobrasil.log.br	jefersonsoares@frigelar.com.br
+TRANSLOVATO	vanessa.freitas@translovato.com.br	jefersonsoares@frigelar.com.br
+TRANSOTHA	; marcio@transotha.com.br; 	matheusoliveira@frigelar.com.br
+TNT / FEDEX	bruna.sorrilha@fedex.com; frankylu.pimentel@fedex.com	amandamartins@frigelar.com.br
+TRANSCHERRER	solucoes@transcherrer.com.br; sso@transcherrer.com.br	jefersonsoares@frigelar.com.br
+TRESELES & PRETTI	coletas@pretticargas.com.br; sac2@pretticargas.com.br; pendencia@pretticargas.com.br	amandamartins@frigelar.com.br
+TRANSLAGUNA	sac.05@translaguna.com; sac.04@translaguna.com; sac.03@translaguna.com	amandamartins@frigelar.com.br
+TRANSMELO	contatotransmelo@gmail.com	fernandocamargo@frigelar.com.br
+TRANSUP	cezar@trans-up.com.br 	fernandocamargo@frigelar.com.br
+TRILOG	ana.aguiar@trilogexpress.com.br	matheusoliveira@frigelar.com.br
+TTJB	sac4.sp@tjbtransportes.com.br; pendencia.sp@tjbtransportes.com.br	jefersonsoares@frigelar.com.br
+TSV	atendimentovip@tsvtransportes.com.br; atendimento@tsvtransportes.com.br	amandamartins@frigelar.com.br
+TW	joi.ocorrencias@twtransportes.com.br	matheusoliveira@frigelar.com.br
+TXS	sac1@txstransportes.com.br; sac2@txstransportes.com.br; sac@txstransportes.com.br; edison.morais@txstransportes.com.br	amandamartins@frigelar.com.br
+VITLOG	angelabritto@vitlog.com.br	jefersonsoares@frigelar.com.br
+
+
+
+OD ou DEV - ORDEM DE DEVOLUÇÃO
+Código da devolução - OD e DEV	Descrição	Procedimento Operacional 	Grupo	Prazo do código em dias	Aprovador	Gera coleta reversa?	Quando usar?
+1	DEVOLUÇÃO DO PROCESSO - OR	GARANTIA	Vendas	1	GARANTIA	SIM	Não usar
+10	DIVERGÊNCIA COMERCIAL - QUANTIDADE	FILIAL	Vendas	14	REGIONAL	SIM	Pedidos loja onde houve erro na quantidade
+11	DEVOLUÇÃO DO PROCESSO - OG	NÃO UTILIZAR	GARANTIA	1	GARANTIA	SIM	Não usar
+12	DEVOLUÇÃO COMERCIAL - SEM FRETE (GERA OG)	NÃO UTILIZAR	Vendas	90	REGIONAL	NÃO	Não usar
+13	DIVERGÊNCIA COMERCIAL - EOS - SUBSTITUIÇÃO NF B2B	NÃO UTILIZAR	Vendas	14	REGIONAL	NÃO	Não usar
+14	DIVERGÊNCIA COMERCIAL - PRODUTO	PRODUTO ERRADO	Vendas	30	REGIONAL	SIM	Pedidos loja onde houve divergência de produto
+15	DIVERGÊNCIA COMERCIAL - DADOS DO CLIENTE	PRODUTO ERRADO	Vendas	14	REGIONAL	NÃO	Pedidos loja onde houve divergência nos dados do cliente
+16	DIVERGÊNCIA COMERCIAL - FORMA DE PAGAMENTO	PRODUTO ERRADO	Vendas	14	REGIONAL	NÃO	Pedidos loja onde houve divergência na forma de pagamento
+17	DIVERGÊNCIA COMERCIAL - COM FRETE	PRODUTO ERRADO	Vendas	180	REGIONAL	SIM	Pedidos loja onde houve divergência de produto e o cliente recebeu
+18	DIVERGÊNCIA COMERCIAL - SEM FRETE	PRODUTO ERRADO	Vendas	180	REGIONAL	NÃO	Pedidos loja onde houve divergência de produto e foi barrada a entrega
+19	RECLAME AQUI	NÃO UTILIZAR	RA	180	GARANTIA	NÃO	Não usar
+2	MERCADORIA AVARIADA - SEM RESSALVA	PRODUTO AVARIADO	Transportes	30	GARANTIA	SIM	Para todos os pedidos, quando o cliente recebeu avariada a mercadoria e não ressalvou na nota e nem recusou a entrega
+20	DEFEITO - SEM COMPONENTES PARA REPARO	GARANTIA	GARANTIA	180	GARANTIA	SIM	Não usar
+21	DEFEITO - ARREPENDIMENTO	ARREPENDIMENTO	GARANTIA	30	GARANTIA	SIM	Quando o cliente solicita a devolução, arrependimento por defeito
+22	DEFEITO - NÃO ATENDIDO EM 30 DIAS	GARANTIA e ARREPENDIMENTO	GARANTIA	365	GARANTIA	SIM	Quando a assistência técnica, fica com o produto a mais de 30 dias na assistência e não resolveu o caso do cliente, precisa ter a aprovação da fabricante EOS
+23	DEFEITO - REINCIDENTE	GARANTIA e ARREPENDIMENTO	GARANTIA	365	GARANTIA	NÃO	Quando o cliente recebeu a troca do produto via garantia e o produto novo deu defeito, precisa de autorização da EOS
+24	DEFEITO - SEM ASSISTÊNCIA NA REGIÃO	GARANTIA e ARREPENDIMENTO	GARANTIA	365	GARANTIA	SIM	Quando não tem assistência técnica, perto para atender o cliente, precisa da autorização da fabricante EOS para prosseguir
+25	DEFEITO - SEM ESTOQUE	GARANTIA e ARREPENDIMENTO	GARANTIA	365	GARANTIA	SIM	Quando não temos estoque para atender o cliente com a resposição via garantia, precisa da autorização da fabricante EOS
+26	AÇÃO JUDICIAL - (GERA OG)	TODOS OS PROCESSOS	JURIDICO	700	GARANTIA	SIM	Somente para casos do juridico e com autorização deles
+27	CLIENTE COMPROU ERRADO - DIGITAL	ARREPENDIMENTO	CANAIS DIGITAIS	30	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	SIM	Cliente comprou errado nos canais digitais - site, app e mktp
+28	DIVERGÊNCIA DE PRODUTO - ANUNCIO	PRODUTO ERRADO	CANAIS DIGITAIS	45	Francisco Lacerda	SIM	Cliente recebe produto divergente do que está no anuncio e foi identificado o erro de anuncio, canais digitais, app, site e mktp
+29	PEDIDO DUPLICADO - DIGITAL	ARREPENDIMENTO	CANAIS DIGITAIS	30	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	SIM	Pedido saiu duplicado, cliente comprou duplicado ou envio foi duplicado, canais digitais - app, site e mktp
+3	MERCADORIA AVARIADA - COM RESSALVA	PRODUTO AVARIADO	Transportes	90	GARANTIA	NÃO	Cliente recebeu o produto avariado, ressalvou na nota e recusou a entrega, produto com a transportadora
+30	CANCELAMENTO DO PEDIDO - MKTP	CANCELAMENTO	CANAIS DIGITAIS	45	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	NÃO	Barrar entrega, produto com a transportadora de canais digitais app, site e mktp
+31	CANCELAMENTO DO PEDIDO - PREÇO	ARREPENDIMENTO	CANAIS DIGITAIS	45	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	SIM	Clienhte solicitou a devolução por causa do preço do produto, canais digitais site, app e mktp
+32	DIVERGÊNCIA NO ATENDIMENTO - SAC (GERA OG)	TODOS OS PROCESSOS	CANAIS DIGITAIS	180	GARANTIA	SIM	Quando divergência no atendimento do SAC, para solucionar o prodblema do cliente
+36	SUSPEITA DE FRAUDE	TODOS OS PROCESSOS	GARANTIA	30	GARANTIA	NÃO	Somente com autorização do financeiro pode utilizar
+39	DIVERGÊNCIA DE PRODUTO - FABRICANTE	PRODUTO ERRADO	GARANTIA	45	Francisco Lacerda	SIM	Quando houve divergência de produto, por culpa da fabricante
+4	ATRASO DE ENTREGA	CANCELAMENTO	Transportes	180	TRANSPORTES	NÃO	Barrar entrega, cliente solicitou o cancelamento, por culpa do atraso de entrega
+45	ARRPENDIMENTO - DIGITAL	ARREPENDIMENTO	CANAIS DIGITAIS	45	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	NÃO	Canais digitais app, site e mktp - arrependimento
+46	ATRASO NO ATENDIMENTO - SAC	CANCELAMENTO	CANAIS DIGITAIS	180	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	NÃO	Quando houve atraso no atendimento do SAC, para solucionar o prodblema do cliente- NÃO GERA COLETA
+47	ATRASO NO ATENDIMENTO - SAC - REVERSA	TODOS OS PROCESSOS	CANAIS DIGITAIS	180	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	SIM	Quando houve atraso no atendimento do SAC, para solucionar o prodblema do cliente-GERA COLETA
+5	INVERSÃO DE VOLUMES - ENTREGA	PRODUTO ERRADO	Transportes	90	TRANSPORTES	SIM	Quando houve inversão de volumes e o cliente não quer mais a mercadoria
+79	MERCADORIA AVARIADA - COM RESSALVA (ANALISE)	PRODUTO AVARIADO	GARANTIA	90	GARANTIA	NÃO	Quando o cliente recusa e a transportadora não aceita a indenização e solicitamos a devolução para analise do CD
+83	EXTRAVIO - FORA DO PRAZO	EXTRAVIO	GARANTIA	180	GARANTIA	NÃO	Quando o código 6, está fora do prazo para criar a OD
+82	AVARIA - FORA DO PRAZO - SEM RESSALVA	PRODUTO AVARIADO	GARANTIA	180	GARANTIA	SIM	Quando o código 2, está fora do prazo para criar a OD
+6	EXTRAVIO	EXTRAVIO	GARANTIA	90	GARANTIA	NÃO	Quando a transportadora autoriza o extravio
+
+
+
