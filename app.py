@@ -691,9 +691,11 @@ else:
                     except FileNotFoundError:
                         st.error("🚨 Arquivo 'regras_operacao.txt' não encontrado. Crie o arquivo na mesma pasta do sistema e lembre de subir ele para o GitHub também!")
                     except Exception as e:
-                        st.error(f"🚨 Erro ao processar a resposta: {e}")
-                else:
-                    st.error(f"🚨 IA não configurada corretamente. Verifique a chave GEMINI_API_KEY no painel de Secrets do Streamlit Cloud. Erro: {erro_ia}")
+                        erro_str = str(e)
+                        if "429" in erro_str or "Quota" in erro_str:
+                            st.warning("⏳ Estou respondendo a muitos operadores ao mesmo tempo! Por favor, aguarde 1 minutinho e tente perguntar de novo.")
+                        else:
+                            st.error(f"🚨 Erro ao processar a resposta: {erro_str}")
 
         # ===================================================
         # 🚚 GAVETA DE TRANSPORTADORAS
@@ -717,3 +719,4 @@ else:
                         st.caption("E-mail Logística (Clique na caixa para copiar):")
                         st.code(email_l, language="text")
             else: st.info("Aba 'Transportadoras' não encontrada ou ainda está vazia.")
+
