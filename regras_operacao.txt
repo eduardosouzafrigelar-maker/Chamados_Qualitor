@@ -690,7 +690,7 @@ Código da devolução - OD e DEV	Descrição	Procedimento Operacional 	Grupo	Pr
 83	EXTRAVIO - FORA DO PRAZO	EXTRAVIO	GARANTIA	180	GARANTIA	NÃO	Quando o código 6, está fora do prazo para criar a OD
 82	AVARIA - FORA DO PRAZO - SEM RESSALVA	PRODUTO AVARIADO	GARANTIA	180	GARANTIA	SIM	Quando o código 2, está fora do prazo para criar a OD
 6	EXTRAVIO	EXTRAVIO	GARANTIA	90	GARANTIA	NÃO	Quando a transportadora autoriza o extravio
-
+90	ESTORNADOS	ESTORNADOS	GARANTIA	360	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	SIM	Para casos onde o cliente foi estornado e está com a mercadoria e deseja devolver, somente para pedidos de MKTP, Amazon, Mercado Livre, Magazine Luiza...
 
 
 CÓDIGO DE POSTAGEM CORREIOS	FILIAL
@@ -746,6 +746,7 @@ CÓDIGO DE POSTAGEM CORREIOS	FILIAL
 78788595	63
 67652271	68
 78900409	70
+
 
 
 
