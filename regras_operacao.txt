@@ -676,7 +676,7 @@ Código da devolução - OD e DEV	Descrição	Procedimento Operacional 	Grupo	Pr
 28	DIVERGÊNCIA DE PRODUTO - ANUNCIO	PRODUTO ERRADO	CANAIS DIGITAIS	45	Francisco Lacerda	SIM	Cliente recebe produto divergente do que está no anuncio e foi identificado o erro de anuncio, canais digitais, app, site e mktp
 29	PEDIDO DUPLICADO - DIGITAL	ARREPENDIMENTO	CANAIS DIGITAIS	30	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	SIM	Pedido saiu duplicado, cliente comprou duplicado ou envio foi duplicado, canais digitais - app, site e mktp
 3	MERCADORIA AVARIADA - COM RESSALVA	PRODUTO AVARIADO	Transportes	90	GARANTIA	NÃO	Cliente recebeu o produto avariado, ressalvou na nota e recusou a entrega, produto com a transportadora
-30	CANCELAMENTO DO PEDIDO - MKTP	CANCELAMENTO	CANAIS DIGITAIS	45	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	NÃO	Barrar entrega, produto com a transportadora de canais digitais app, site e mktp
+30	CANCELAMENTO DO PEDIDO - MKTP	CANCELAMENTO e ARREPENDIMENTO	CANAIS DIGITAIS	45	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	NÃO	Barrar entrega, produto com a transportadora de canais digitais app, site e mktp
 31	CANCELAMENTO DO PEDIDO - PREÇO	ARREPENDIMENTO	CANAIS DIGITAIS	45	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	SIM	Clienhte solicitou a devolução por causa do preço do produto, canais digitais site, app e mktp
 32	DIVERGÊNCIA NO ATENDIMENTO - SAC (GERA OG)	TODOS OS PROCESSOS	CANAIS DIGITAIS	180	GARANTIA	SIM	Quando divergência no atendimento do SAC, para solucionar o prodblema do cliente
 36	SUSPEITA DE FRAUDE	TODOS OS PROCESSOS	GARANTIA	30	GARANTIA	NÃO	Somente com autorização do financeiro pode utilizar
@@ -752,6 +752,7 @@ CÓDIGO DE POSTAGEM CORREIOS	FILIAL
 O que é um estornado? São pedidos feito via MKTP, na qual o cliente recebeu o produto e o MKTP devolveu o valor do produto ao cliente, resumindo, o cliente está com o produto e o reembolso, precisamos que o cliente ou pague o produto ou devolva
 
 27	CLIENTE COMPROU ERRADO - DIGITAL ele gera coleta, MKTP
-30	CANCELAMENTO DO PEDIDO - MKTP ele não gera coleta
+30	CANCELAMENTO DO PEDIDO - MKTP serve para todos as areas e ele não gera coleta
+
 
 
