@@ -682,7 +682,6 @@ Código da devolução - OD e DEV	Descrição	Procedimento Operacional 	Grupo	Pr
 36	SUSPEITA DE FRAUDE	TODOS OS PROCESSOS	GARANTIA	30	GARANTIA	NÃO	Somente com autorização do financeiro pode utilizar
 39	DIVERGÊNCIA DE PRODUTO - FABRICANTE	PRODUTO ERRADO	GARANTIA	45	Francisco Lacerda	SIM	Quando houve divergência de produto, por culpa da fabricante
 4	ATRASO DE ENTREGA	CANCELAMENTO	Transportes	180	TRANSPORTES	NÃO	Barrar entrega, cliente solicitou o cancelamento, por culpa do atraso de entrega
-45	ARRPENDIMENTO - DIGITAL	ARREPENDIMENTO	CANAIS DIGITAIS	45	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	NÃO	Canais digitais app, site e mktp - arrependimento
 46	ATRASO NO ATENDIMENTO - SAC	CANCELAMENTO	CANAIS DIGITAIS	180	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	NÃO	Quando houve atraso no atendimento do SAC, para solucionar o prodblema do cliente- NÃO GERA COLETA
 47	ATRASO NO ATENDIMENTO - SAC - REVERSA	TODOS OS PROCESSOS	CANAIS DIGITAIS	180	CANAIS DIGITAIS - Gabriela Luvizetto e Andrea Amarante	SIM	Quando houve atraso no atendimento do SAC, para solucionar o prodblema do cliente-GERA COLETA
 5	INVERSÃO DE VOLUMES - ENTREGA	PRODUTO ERRADO	Transportes	90	TRANSPORTES	SIM	Quando houve inversão de volumes e o cliente não quer mais a mercadoria
@@ -751,4 +750,5 @@ CÓDIGO DE POSTAGEM CORREIOS	FILIAL
 
 
 O que é um estornado? São pedidos feito via MKTP, na qual o cliente recebeu o produto e o MKTP devolveu o valor do produto ao cliente, resumindo, o cliente está com o produto e o reembolso, precisamos que o cliente ou pague o produto ou devolva
+
 
