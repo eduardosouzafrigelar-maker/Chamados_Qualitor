@@ -751,4 +751,7 @@ CÓDIGO DE POSTAGEM CORREIOS	FILIAL
 
 O que é um estornado? São pedidos feito via MKTP, na qual o cliente recebeu o produto e o MKTP devolveu o valor do produto ao cliente, resumindo, o cliente está com o produto e o reembolso, precisamos que o cliente ou pague o produto ou devolva
 
+27	CLIENTE COMPROU ERRADO - DIGITAL ele gera coleta, MKTP
+30	CANCELAMENTO DO PEDIDO - MKTP ele não gera coleta
+
 
