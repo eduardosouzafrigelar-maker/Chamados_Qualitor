@@ -11,7 +11,7 @@ import google.generativeai as genai
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
 
 # --- 👑 ADMINISTRAÇÃO ---
-ADMINS = ["Eduardo", "EduardoSouza", "Gestor"] 
+ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes"] 
 
 # --- 🧠 CONFIGURAÇÃO DA IA (ORÁCULO) ---
 try:
@@ -129,7 +129,7 @@ if isinstance(sh, str):
     st.error("❌ A conexão falhou antes de carregar as abas.")
     st.warning(f"Diagnóstico: {sh}")
     if "SpreadsheetNotFound" in sh:
-        st.info("💡 Dica: O robô logou no Google, mas não achou a planilha. Verifique se o nome está exatamente 'Chamados_Qualitor' e se o e-mail do robô está como Editor.")
+        st.info("Logou no Google, mas não achou a planilha. Verifique se o nome está exatamente 'Chamados_Qualitor' e se o e-mail do robô está como Editor.")
     if st.button("Tentar conectar novamente agora"): st.rerun()
     st.stop()
 elif aba_chamados is None or aba_users is None:
@@ -173,7 +173,7 @@ if 'soltar_baloes' in st.session_state and st.session_state['soltar_baloes']:
     st.session_state['soltar_baloes'] = False
 
 # ===================================================
-# 🎨 APLICADOR DE TEMAS (AGORA CIRÚRGICO)
+# APLICADOR DE TEMAS
 # ===================================================
 if 'tema_escolhido' not in st.session_state:
     st.session_state['tema_escolhido'] = "Padrão"
@@ -431,7 +431,7 @@ else:
                         if pos_real == 1: st.success(f"🥇 Você está em 1º Lugar na equipe!")
                         elif pos_real == 2: st.info(f"🥈 Você está em 2º Lugar na equipe!")
                         elif pos_real == 3: st.warning(f"🥉 Você está em 3º Lugar na equipe!")
-                        else: st.markdown(f"📍 **Sua posição no ranking:** {pos_real}º Lugar")
+                        else: st.markdown(f"📍 **Sua posição:** {pos_real}º Lugar")
                     else: st.caption("Você ainda não finalizou chamados hoje.")
 
                     if usuario in ADMINS:
