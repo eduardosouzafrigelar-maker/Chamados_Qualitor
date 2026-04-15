@@ -2,4 +2,7 @@ streamlit
 pandas
 gspread
 pytz
+requests
 google-generativeai
+streamlit-autorefresh
+fpdf
