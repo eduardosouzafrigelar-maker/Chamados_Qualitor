@@ -15,7 +15,7 @@ import unicodedata
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
 
 # --- 👑 ADMINISTRAÇÃO ---
-ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes"] 
+ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes", "eduardosouza"] 
 
 # --- 🧠 CONFIGURAÇÃO DA IA (ORÁCULO E RESUMIDOR) ---
 try:
@@ -199,7 +199,7 @@ if 'soltar_baloes' in st.session_state and st.session_state['soltar_baloes']:
 if 'tema_escolhido' not in st.session_state:
     st.session_state['tema_escolhido'] = "Padrão"
 
-if st.session_state['tema_escolhido'] == "Hacker Matrix":
+if st.session_state['tema_escolhido'] == "Matrix":
     st.markdown("""
         <style>
         .stApp { background-color: #0D0D0D; }
@@ -212,7 +212,7 @@ if st.session_state['tema_escolhido'] == "Hacker Matrix":
         .stTextInput>div>div>input { background-color: #000; color: #00FF41; border: 1px solid #00FF41; }
         </style>
     """, unsafe_allow_html=True)
-elif st.session_state['tema_escolhido'] == "Dark Night":
+elif st.session_state['tema_escolhido'] == "Escuro":
     st.markdown("""
         <style>
         .stApp { background-color: #0b1120; }
@@ -223,7 +223,7 @@ elif st.session_state['tema_escolhido'] == "Dark Night":
         [data-testid="stSidebar"] { background-color: #0f172a; border-right: 1px solid #1e293b; }
         </style>
     """, unsafe_allow_html=True)
-elif st.session_state['tema_escolhido'] == "Rosa Fofo":
+elif st.session_state['tema_escolhido'] == "Rosa":
     st.markdown("""
         <style>
         .stApp { background-color: #fff0f5; }
@@ -387,7 +387,7 @@ else:
         with st.sidebar:
             st.header(f"👤 {usuario}")
             
-            novo_tema = st.selectbox("🎨 Tema Visual", ["Padrão", "Hacker Matrix", "Dark Night", "Rosa Fofo"], index=["Padrão", "Hacker Matrix", "Dark Night", "Rosa Fofo"].index(st.session_state['tema_escolhido']))
+            novo_tema = st.selectbox("🎨 Tema Visual", ["Padrão", "Matrix", "Escuro", "Rosa"], index=["Padrão", "Matrix", "Escuro", "Rosa"].index(st.session_state['tema_escolhido']))
             if novo_tema != st.session_state['tema_escolhido']:
                 st.session_state['tema_escolhido'] = novo_tema
                 st.rerun()
@@ -727,7 +727,7 @@ else:
         else:
             texto_mural = ler_mural()
             if texto_mural:
-                st.warning(f"📢 **AVISO DA GESTÃO:** {texto_mural}")
+                st.warning(f"📢 **RECADOS:** {texto_mural}")
                 
             if status_real != "Disponivel":
                 st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
@@ -762,7 +762,7 @@ else:
                         # 🧠 RESUMIDOR DE IA
                         with st.expander("✨ Resumir Histórico do Chamado (Inteligência Artificial)"):
                             historico = st.text_area("Cole aqui os assentamentos do cliente para análise rápida:", height=100)
-                            if st.button("Mastigar Histórico"):
+                            if st.button("Resumir Histórico"):
                                 if ia_ativa and historico:
                                     with st.spinner("A processar os dados..."):
                                         prompt = f"Analise este histórico de atendimento e devolva os 3 pontos mais importantes (causa, situação atual e o que o cliente quer). Seja extremamente resumido:\n\n{historico}"
