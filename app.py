@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import time
 import pytz
 import os
+import requests
 import google.generativeai as genai
 from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
@@ -16,11 +17,10 @@ st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide
 # --- 👑 ADMINISTRAÇÃO ---
 ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes"] 
 
-# --- 🧠 CONFIGURAÇÃO DA IA (ORÁCULO) ---
+# --- 🧠 CONFIGURAÇÃO DA IA (ORÁCULO E RESUMIDOR) ---
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     
-    # MODO AUTO-DESCOBERTA DE MODELO
     modelo_escolhido = None
     for m in genai.list_models():
         if 'generateContent' in m.supported_generation_methods:
@@ -44,11 +44,20 @@ except Exception as e:
     ia_ativa = False
     erro_ia = str(e)
 
+# --- 🚨 ALERTA MICROSOFT TEAMS ---
+def alertar_teams(mensagem):
+    webhook_url = "https://teams.microsoft.com/l/chat/48:notes/conversations?context=%7B%22contextType%22%3A%22chat%22%7D"
+    if webhook_url != "https://teams.microsoft.com/l/chat/48:notes/conversations?context=%7B%22contextType%22%3A%22chat%22%7D":
+        try:
+            payload = {"text": mensagem}
+            requests.post(webhook_url, json=payload)
+        except:
+            pass
+
 # --- CONEXÃO BLINDADA (ANTI-TRAVAMENTO DO GOOGLE) ---
 @st.cache_resource
 def conectar_e_abrir_abas():
     try:
-        # 1. Verifica Credenciais
         if os.path.exists("credentials.json"):
             client = gspread.service_account(filename="credentials.json")
         else:
@@ -56,9 +65,8 @@ def conectar_e_abrir_abas():
                 creds_dict = st.secrets["gcp_service_account"]
                 client = gspread.service_account_from_dict(creds_dict)
             except:
-                return "🚨 ERRO: Credenciais não encontradas. Faltam os Secrets ou o credentials.json.", None, None, None, None
+                return "🚨 ERRO: Credenciais não encontradas.", None, None, None, None
         
-        # 2. Loop de Paciência (Tenta até 10 vezes se o Google travar)
         erro_real = ""
         for tentativa in range(10):
             try:
@@ -75,9 +83,9 @@ def conectar_e_abrir_abas():
                     erro_real = "A planilha tem menos de 2 abas visíveis."
             except Exception as e:
                 erro_real = str(e)
-                time.sleep(2 + tentativa) # Espera progressiva antes de tentar de novo
+                time.sleep(2 + tentativa)
                 
-        return f"Falha após 10 tentativas. Último erro: {erro_real}", None, None, None, None
+        return f"Falha após 10 tentativas. Erro: {erro_real}", None, None, None, None
     except Exception as e:
         return f"Erro Crítico: {str(e)}", None, None, None, None
 
@@ -92,19 +100,6 @@ def hora_texto():
 def data_hoje():
     return hora_brasil().strftime("%d/%m/%Y")
 
-def calcular_minutos(data_inicio_str):
-    try:
-        inicio = datetime.strptime(data_inicio_str, "%d/%m/%Y %H:%M:%S")
-        inicio = inicio.replace(tzinfo=pytz.timezone('America/Sao_Paulo'))
-        agora = hora_brasil()
-        diferenca = agora - inicio
-        return int(diferenca.total_seconds() / 60)
-    except: return 0
-
-def formatar_tempo(minutos):
-    horas, resto = divmod(minutos, 60)
-    return f"{horas}h {resto}min"
-
 def calcular_duracao_str(inicio_str, fim_str):
     try:
         fmt = "%d/%m/%Y %H:%M:%S"
@@ -117,29 +112,18 @@ def calcular_duracao_str(inicio_str, fim_str):
         return f"{resto}m"
     except: return "-"
 
-def minutos_gastos(inicio_str, fim_str):
-    try:
-        fmt = "%d/%m/%Y %H:%M:%S"
-        i = datetime.strptime(str(inicio_str), fmt)
-        f = datetime.strptime(str(fim_str), fmt)
-        return (f - i).total_seconds() / 60
-    except: return 0
-
-# --- INICIAR CONEXÃO (COM DIAGNÓSTICO DETETIVE) ---
+# --- INICIAR CONEXÃO ---
 sh, aba_chamados, aba_users, aba_logs, aba_transp = conectar_e_abrir_abas()
 
 if isinstance(sh, str):
-    st.error("❌ A conexão falhou antes de carregar as abas.")
-    st.warning(f"Diagnóstico: {sh}")
-    if "SpreadsheetNotFound" in sh:
-        st.info("Logou no Google, mas não achou a planilha. Verifique se o nome está exatamente 'Chamados_Qualitor' e se o e-mail do robô está como Editor.")
-    if st.button("Tentar conectar novamente agora"): st.rerun()
+    st.error(f"Erro de conexão: {sh}")
+    st.warning("⏳ Se for erro 429, aguarde 1 minuto e recarregue a página.")
     st.stop()
-elif aba_chamados is None or aba_users is None:
-    st.error("Erro desconhecido ao tentar carregar as abas principais.")
+if aba_chamados is None:
+    st.error("Erro ao carregar abas principais.")
     st.stop()
 
-# --- FUNÇÕES DE DADOS E LOGS (COM CACHE) ---
+# --- FUNÇÕES DE DADOS (COM CACHE) ---
 def registrar_log(usuario, acao):
     try: aba_logs.append_row([usuario, acao, hora_texto()])
     except: pass
@@ -161,8 +145,7 @@ def carregar_status_equipe():
         df = pd.DataFrame(dados[1:], columns=dados[0])
         df = df.loc[:, df.columns != ''] 
         return df
-    except Exception as e:
-        return pd.DataFrame()
+    except: return pd.DataFrame()
 
 @st.cache_data(ttl=3600) 
 def carregar_agenda_transp():
@@ -183,7 +166,18 @@ def carregar_logs_dia():
         return df_l
     except: return pd.DataFrame()
 
-# --- RANKING GLOBAL (MEMÓRIA PERPÉTUA PARA O PDF) ---
+def ler_mural():
+    try:
+        with open("mural.txt", "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except:
+        return ""
+
+def salvar_mural(texto):
+    with open("mural.txt", "w", encoding="utf-8") as f:
+        f.write(texto)
+
+# --- RANKING GLOBAL (MEMÓRIA PERPÉTUA) ---
 df_logs_global = carregar_logs_dia()
 ranking_global = pd.DataFrame()
 if not df_logs_global.empty:
@@ -200,12 +194,12 @@ if 'soltar_baloes' in st.session_state and st.session_state['soltar_baloes']:
     st.session_state['soltar_baloes'] = False
 
 # ===================================================
-# APLICADOR DE TEMAS
+# 🎨 APLICADOR DE TEMAS
 # ===================================================
 if 'tema_escolhido' not in st.session_state:
     st.session_state['tema_escolhido'] = "Padrão"
 
-if st.session_state['tema_escolhido'] == "Matrix":
+if st.session_state['tema_escolhido'] == "Hacker Matrix":
     st.markdown("""
         <style>
         .stApp { background-color: #0D0D0D; }
@@ -218,7 +212,7 @@ if st.session_state['tema_escolhido'] == "Matrix":
         .stTextInput>div>div>input { background-color: #000; color: #00FF41; border: 1px solid #00FF41; }
         </style>
     """, unsafe_allow_html=True)
-elif st.session_state['tema_escolhido'] == "Escuro":
+elif st.session_state['tema_escolhido'] == "Dark Night":
     st.markdown("""
         <style>
         .stApp { background-color: #0b1120; }
@@ -229,7 +223,7 @@ elif st.session_state['tema_escolhido'] == "Escuro":
         [data-testid="stSidebar"] { background-color: #0f172a; border-right: 1px solid #1e293b; }
         </style>
     """, unsafe_allow_html=True)
-elif st.session_state['tema_escolhido'] == "Rosa":
+elif st.session_state['tema_escolhido'] == "Rosa Fofo":
     st.markdown("""
         <style>
         .stApp { background-color: #fff0f5; }
@@ -243,9 +237,10 @@ elif st.session_state['tema_escolhido'] == "Rosa":
         </style>
     """, unsafe_allow_html=True)
 
-# --- TELA DE LOGIN ---
+# --- TELA DE LOGIN (COM TEXT INPUT) ---
 if 'usuario' not in st.session_state:
-    st.title("🎫 ESTEIRA - QUALITOR")
+    st.title("🎫 Login do Sistema")
+    st.markdown("### Acesse com as suas credenciais")
     
     df_equipe = carregar_status_equipe()
     if not df_equipe.empty and 'Colaboradores' in df_equipe.columns:
@@ -253,28 +248,29 @@ if 'usuario' not in st.session_state:
         senhas = dict(zip(df_equipe['Colaboradores'], df_equipe.get('Senha', ['']*len(df_equipe))))
     else:
         lista_nomes = []; senhas = {}
-        st.warning("⚠️ Planilha carregando ou aba Colaboradores vazia. Clique abaixo se demorar.")
+        st.warning("⚠️ Planilha a carregar. Clique abaixo se demorar.")
         if st.button("🔄 Recarregar Nomes"):
             st.cache_data.clear(); st.rerun()
     
     c1, c2 = st.columns(2)
-    escolha = c1.selectbox("Usuário:", [""] + lista_nomes)
-    senha = c2.text_input("Senha:", type="password")
+    user_digitado = c1.text_input("Usuário:", placeholder="Digite o seu nome de usuário")
+    senha_digitada = c2.text_input("Palavra-passe:", type="password", placeholder="A sua senha")
     
-    if st.button("Entrar no Sistema"):
-        if escolha and str(senha) == str(senhas.get(escolha, "")):
-            st.session_state['usuario'] = escolha
+    if st.button("Entrar no Sistema", use_container_width=True):
+        if user_digitado in lista_nomes and str(senha_digitada) == str(senhas.get(user_digitado, "")):
+            st.session_state['usuario'] = user_digitado
             st.session_state['tamanho_fila_anterior'] = 0 
-            registrar_log(escolha, "LOGIN") 
+            registrar_log(user_digitado, "LOGIN") 
             
             try:
-                idx = df_equipe.index[df_equipe['Colaboradores'] == escolha].tolist()[0] + 2
+                idx = df_equipe.index[df_equipe['Colaboradores'] == user_digitado].tolist()[0] + 2
                 aba_users.update_cell(idx, 3, "Disponivel")
                 st.cache_data.clear() 
             except: pass
             
             st.rerun()
-        else: st.error("Dados inválidos.")
+        else: 
+            st.error("❌ Usuário não encontrado ou senha incorreta.")
 
 # --- SISTEMA LOGADO ---
 else:
@@ -282,7 +278,6 @@ else:
     df = carregar_dados_chamados()
     df_equipe = carregar_status_equipe()
     
-    # 🎯 GPS DE COLUNAS
     if not df.empty:
         cols_planilha = df.columns.tolist()
         COL_STATUS = cols_planilha.index("Status") + 1 if "Status" in cols_planilha else 3
@@ -293,10 +288,15 @@ else:
         COL_STATUS, COL_RESP, COL_INICIO, COL_FIM = 3, 5, 6, 7
     
     # ===================================================
-    # 📺 MODO TELÃO (TV DO SALÃO - SLA COMPLETO)
+    # 📺 MODO TELÃO (TV DO SALÃO)
     # ===================================================
     if usuario == "TV":
         st.markdown("<h1 style='text-align: center; color: #1E90FF; font-size: 70px;'>📺 Dashboard Operacional</h1>", unsafe_allow_html=True)
+        
+        texto_mural = ler_mural()
+        if texto_mural:
+            st.warning(f"📢 **AVISO DA GESTÃO:** {texto_mural}")
+            
         st.markdown(f"<p style='text-align: center; font-size: 25px;'>Última atualização: {hora_texto()}</p>", unsafe_allow_html=True)
         
         st.markdown("""
@@ -312,85 +312,63 @@ else:
         if st.button("Sair (Logout da TV)"):
             del st.session_state['usuario']; st.rerun()
             
-        # --- CÁLCULOS ---
         qtd_online = len(df_equipe[df_equipe['Status'] == 'Disponivel']) if not df_equipe.empty and 'Status' in df_equipe.columns else 0
-        
-        # 0. Base Geral
         total_base = len(df) if not df.empty else 0
-        base_fora = 0
-        base_dentro = 0
-        if not df.empty and 'SLA' in df.columns:
-            base_fora = len(df[df['SLA'].astype(str).str.lower().str.contains('fora')])
-            base_dentro = total_base - base_fora
-        else: base_dentro = total_base
+        
+        base_fora = len(df[df['SLA'].astype(str).str.lower().str.contains('fora')]) if not df.empty and 'SLA' in df.columns else 0
+        base_dentro = total_base - base_fora
 
-        # 1. Pendentes
-        pend_total = 0; pend_dentro = 0; pend_fora = 0
-        if not df.empty:
-            pend_df = df[df['Status'] == 'Pendente'].copy()
-            pend_total = len(pend_df)
-            if pend_total > 0 and 'SLA' in pend_df.columns:
-                pend_fora = len(pend_df[pend_df['SLA'].astype(str).str.lower().str.contains('fora')])
-                pend_dentro = pend_total - pend_fora
-            else: pend_dentro = pend_total
+        pend_df = df[df['Status'] == 'Pendente'].copy() if not df.empty else pd.DataFrame()
+        pend_total = len(pend_df)
+        pend_fora = len(pend_df[pend_df['SLA'].astype(str).str.lower().str.contains('fora')]) if pend_total > 0 and 'SLA' in pend_df.columns else 0
+        pend_dentro = pend_total - pend_fora
                 
-        # 2. Em Andamento
-        and_total = 0; and_dentro = 0; and_fora = 0
-        if not df.empty:
-            and_df = df[df['Status'] == 'Em Andamento'].copy()
-            and_total = len(and_df)
-            if and_total > 0 and 'SLA' in and_df.columns:
-                and_fora = len(and_df[and_df['SLA'].astype(str).str.lower().str.contains('fora')])
-                and_dentro = and_total - and_fora
-            else: and_dentro = and_total
+        and_df = df[df['Status'] == 'Em Andamento'].copy() if not df.empty else pd.DataFrame()
+        and_total = len(and_df)
+        and_fora = len(and_df[and_df['SLA'].astype(str).str.lower().str.contains('fora')]) if and_total > 0 and 'SLA' in and_df.columns else 0
+        and_dentro = and_total - and_fora
                 
-        # 3. Feitos Hoje
-        feitos_total = 0; feitos_dentro = 0; feitos_fora = 0
-        if not df.empty and 'Data_Conclusao' in df.columns:
-            hoje = data_hoje()
-            feitos_df = df[(df['Status'] == 'Concluido') & (df['Data_Conclusao'].astype(str).str.contains(hoje))].copy()
-            feitos_total = len(feitos_df)
-            if feitos_total > 0 and 'SLA' in feitos_df.columns:
-                feitos_fora = len(feitos_df[feitos_df['SLA'].astype(str).str.lower().str.contains('fora')])
-                feitos_dentro = feitos_total - feitos_fora
-            else: feitos_dentro = feitos_total
+        feitos_total = ranking_global['Qtd'].sum() if not ranking_global.empty else 0
 
-        # --- EXIBIÇÃO NO TELÃO ---
         st.markdown(f"<h2 style='text-align: center;'>🟢 Operadores Online: {qtd_online}</h2>", unsafe_allow_html=True)
         st.write("---")
         
         st.markdown("### 🗄️ Base Geral (Todos os Status)")
         cb1, cb2, cb3 = st.columns(3)
         cb1.metric("Total na Base", total_base)
-        cb2.metric("✅ SLA no Prazo", base_dentro)
-        cb3.metric("🔥 SLA Fora do Prazo", base_fora)
+        cb2.metric("✅ Geral no Prazo", base_dentro)
+        cb3.metric("🔥 Geral Atrasado", base_fora)
 
         st.write("---")
         st.markdown("### 🎫 Fila de Espera (Pendentes)")
         c1, c2, c3 = st.columns(3)
         c1.metric("Total Pendente", pend_total)
-        c2.metric("✅ SLA no Prazo", pend_dentro)
-        c3.metric("🔥 SLA Fora do Prazo", pend_fora)
+        c2.metric("✅ Fila no Prazo", pend_dentro)
+        c3.metric("🔥 Fila Atrasada", pend_fora)
         
         st.write("---")
         st.markdown("### ⚙️ Em Atendimento (Agora)")
         c4, c5, c6 = st.columns(3)
         c4.metric("Total em Andamento", and_total)
-        c5.metric("✅ SLA no Prazo", and_dentro)
-        c6.metric("🔥 SLA Fora do Prazo", and_fora)
+        c5.metric("✅ Andamento no Prazo", and_dentro)
+        c6.metric("🔥 Andamento Atrasado", and_fora)
         
         st.write("---")
         st.markdown("### 🏆 Fechamentos (Hoje)")
-        c7, c8, c9 = st.columns(3)
-        c7.metric("Total Concluído", feitos_total)
-        c8.metric("🟢 SLA no Prazo", feitos_dentro)
-        c9.metric("🔴 SLA Fora do Prazo", feitos_fora)
+        c7, c8 = st.columns(2)
+        c7.metric("Total Concluído (Geral)", feitos_total)
+        with c8:
+            if not ranking_global.empty:
+                melhor = ranking_global.iloc[0]
+                st.metric("🥇 Destaque do Dia", f"{melhor['Nome']} ({melhor['Qtd']})")
+            else:
+                st.metric("🥇 Destaque do Dia", "Aguardando...")
         
         time.sleep(15)
         st.cache_data.clear(); st.rerun()
 
     # ===================================================
-    # 👨‍💻 VISÃO NORMAL (GERENTE OU OPERADOR)
+    # 👨‍💻 VISÃO NORMAL (GESTOR OU OPERADOR)
     # ===================================================
     else:
         status_real = "Erro"
@@ -403,13 +381,13 @@ else:
                 status_real = meus_dados.iloc[0].get('Status', 'Erro')
                 etapas_str = str(meus_dados.iloc[0].get('Etapas_Permitidas', 'Todas'))
                 minhas_etapas = [e.strip() for e in etapas_str.split(',')]
-                idx = df_equipe.index[df_equipe['Colaboradores'] == usuario].tolist()[0] + 2
-                linha_planilha = idx
+                idx = df_equipe.index[df_equipe['Colaboradores'] == usuario].tolist()[0]
+                linha_planilha = idx + 2
 
         with st.sidebar:
             st.header(f"👤 {usuario}")
             
-            novo_tema = st.selectbox("🎨 Tema Visual", ["Padrão", "Matrix", "Escuro", "Rosa"], index=["Padrão", "Matrix", "Escuro", "Rosa"].index(st.session_state['tema_escolhido']))
+            novo_tema = st.selectbox("🎨 Tema Visual", ["Padrão", "Hacker Matrix", "Dark Night", "Rosa Fofo"], index=["Padrão", "Hacker Matrix", "Dark Night", "Rosa Fofo"].index(st.session_state['tema_escolhido']))
             if novo_tema != st.session_state['tema_escolhido']:
                 st.session_state['tema_escolhido'] = novo_tema
                 st.rerun()
@@ -441,33 +419,51 @@ else:
                     st.cache_data.clear(); st.rerun()
             
             st.divider()
-            st.subheader("🏆 Seu Desempenho")
-            if not df.empty and 'Data_Conclusao' in df.columns:
-                hoje = data_hoje()
-                feitos_hoje = df[(df['Status'] == 'Concluido') & (df['Data_Conclusao'].astype(str).str.contains(hoje))]
+            
+            with st.expander("⚙️ Meu Perfil (Mudar Senha)"):
+                nova_senha = st.text_input("Digite a nova senha:", type="password")
+                confirma_senha = st.text_input("Confirme a nova senha:", type="password")
                 
-                if not feitos_hoje.empty:
-                    ranking = feitos_hoje['Responsavel'].value_counts().reset_index()
-                    ranking.columns = ['Nome', 'Qtd']
-                    minha_posicao = ranking.index[ranking['Nome'] == usuario].tolist()
-                    
-                    if minha_posicao:
-                        pos_real = minha_posicao[0] + 1
-                        qtd_minha = ranking.iloc[minha_posicao[0]]['Qtd']
-                        st.markdown(f"✅ **Feitos hoje:** {qtd_minha} chamados")
-                        if pos_real == 1: st.success(f"🥇 Você está em 1º Lugar na equipe!")
-                        elif pos_real == 2: st.info(f"🥈 Você está em 2º Lugar na equipe!")
-                        elif pos_real == 3: st.warning(f"🥉 Você está em 3º Lugar na equipe!")
-                        else: st.markdown(f"📍 **Sua posição:** {pos_real}º Lugar")
-                    else: st.caption("Você ainda não finalizou chamados hoje.")
+                if st.button("Salvar Nova Senha", use_container_width=True):
+                    if nova_senha == confirma_senha and len(nova_senha) >= 4:
+                        try:
+                            cols_users = df_equipe.columns.tolist()
+                            if "Senha" in cols_users:
+                                col_senha_idx = cols_users.index("Senha") + 1
+                                aba_users.update_cell(linha_planilha, col_senha_idx, nova_senha)
+                                registrar_log(usuario, "Mudou a própria senha")
+                                st.success("✅ Senha atualizada! Use no próximo login.")
+                                st.cache_data.clear()
+                            else:
+                                st.error("Erro: Coluna 'Senha' não encontrada.")
+                        except Exception as e:
+                            st.error(f"Erro ao mudar senha: {e}")
+                    else:
+                        st.warning("⚠️ Senhas não batem ou são curtas (mín. 4).")
+            
+            st.divider()
+            
+            st.subheader("🏆 Seu Desempenho Hoje")
+            if not ranking_global.empty:
+                minha_posicao = ranking_global.index[ranking_global['Nome'] == usuario].tolist()
+                
+                if minha_posicao:
+                    pos_real = minha_posicao[0] + 1
+                    qtd_minha = ranking_global.iloc[minha_posicao[0]]['Qtd']
+                    st.markdown(f"✅ **Feitos hoje:** {qtd_minha} chamados")
+                    if pos_real == 1: st.success(f"🥇 1º Lugar na equipe!")
+                    elif pos_real == 2: st.info(f"🥈 2º Lugar na equipe!")
+                    elif pos_real == 3: st.warning(f"🥉 3º Lugar na equipe!")
+                    else: st.markdown(f"📍 **Sua posição no ranking:** {pos_real}º Lugar")
+                else: st.caption("Ainda não finalizou chamados hoje.")
 
-                    if usuario in ADMINS:
-                        st.write("---")
-                        st.caption("👑 Visão do Gestor (Top 3):")
-                        for i, row in ranking.head(3).iterrows():
-                            medalha = "🥇" if i == 0 else "🥈" if i == 1 else "🥉"
-                            st.markdown(f"{medalha} {row['Nome']} ({row['Qtd']})")
-                else: st.caption("A corrida de hoje ainda não começou!")
+                if usuario in ADMINS:
+                    st.write("---")
+                    st.caption("👑 Visão do Gestor (Top 3):")
+                    for i, row in ranking_global.head(3).iterrows():
+                        medalha = "🥇" if i == 0 else "🥈" if i == 1 else "🥉"
+                        st.markdown(f"{medalha} {row['Nome']} ({row['Qtd']})")
+            else: st.caption("A corrida de hoje ainda não começou!")
 
             st.divider()
             if st.button("Sair (Logout)"):
@@ -475,16 +471,14 @@ else:
                 del st.session_state['usuario']; st.rerun()
 
         # ===================================================
-        # 👑 VISÃO DO GERENTE (ADMIN)
+        # 👑 VISÃO DO GESTOR (ADMIN)
         # ===================================================
         if modo_gerente:
             st.title("📊 Painel de Controle - Gestão")
             st.caption(f"Última atualização: {hora_texto()}")
             if st.button("🔄 Atualizar Tudo"): st.cache_data.clear(); st.rerun()
             
-            # ===================================================
-            # 📄 GERADOR DE RELATÓRIO EXECUTIVO (PDF)
-            # ===================================================
+            # --- GERADOR DE RELATÓRIO EXECUTIVO (PDF) ---
             st.write("---")
             st.subheader("📄 Relatório Executivo (PDF)")
             with st.expander("Gerar Fechamento do Turno em PDF"):
@@ -494,47 +488,39 @@ else:
                 
                 if st.button("🖨️ Mapear Dados e Criar PDF", use_container_width=True):
                     with st.spinner("Compilando dados em tempo real..."):
-                        
-                        # 1. Função anti-bug para remover acentos (o PDF padrão não lê UTF-8 direito)
                         def formatar_texto(texto):
                             return unicodedata.normalize('NFKD', str(texto)).encode('ASCII', 'ignore').decode('ASCII')
                         
-                        # 2. Captura dos KPIs Atuais
                         pendentes_totais = len(df[df['Status'] == 'Pendente']) if not df.empty else 0
                         prioridade_df = df[(df['Status'] == 'Pendente') & (df['SLA'].astype(str).str.contains('Prioridade', case=False))] if not df.empty and 'SLA' in df.columns else pd.DataFrame()
                         prioridade_1_totais = len(prioridade_df)
                         feitos_totais = ranking_global['Qtd'].sum() if not ranking_global.empty else 0
                         
-                        # 3. Desenho do Documento PDF
                         pdf = FPDF()
                         pdf.add_page()
                         
-                        # Cabeçalho
                         pdf.set_font('Arial', 'B', 16)
                         pdf.cell(0, 10, formatar_texto('Relatorio Executivo - Esteira Qualitor'), 0, 1, 'C')
                         pdf.set_font('Arial', 'I', 10)
                         pdf.cell(0, 10, formatar_texto(f'Gerado pelo Sistema Automatizado em: {hora_texto()}'), 0, 1, 'C')
                         pdf.ln(10)
                         
-                        # Seção 1: Volume e Crise
                         pdf.set_font('Arial', 'B', 12)
                         pdf.cell(0, 10, formatar_texto('1. PANORAMA OPERACIONAL (Fila vs Producao)'), 0, 1)
                         pdf.set_font('Arial', '', 12)
                         pdf.cell(0, 10, formatar_texto(f'> Chamados Finalizados Hoje: {feitos_totais} chamados resolvidos.'), 0, 1)
                         pdf.cell(0, 10, formatar_texto(f'> Fila de Espera Atual: {pendentes_totais} pendentes na esteira.'), 0, 1)
                         
-                        # Alerta Crítico
                         if prioridade_1_totais > 0:
-                            pdf.set_text_color(255, 0, 0) # Cor Vermelha
+                            pdf.set_text_color(255, 0, 0)
                             pdf.cell(0, 10, formatar_texto(f'> ALERTA DE SLA: {prioridade_1_totais} chamados de Prioridade 1 (Vencem Hoje) na fila!'), 0, 1)
-                            pdf.set_text_color(0, 0, 0) # Volta para Preto
+                            pdf.set_text_color(0, 0, 0)
                         else:
                             pdf.set_text_color(0, 128, 0)
                             pdf.cell(0, 10, formatar_texto('> ALERTA DE SLA: Nenhum chamado de Prioridade Maxima pendente. Operacao controlada.'), 0, 1)
                             pdf.set_text_color(0, 0, 0)
                         pdf.ln(5)
                         
-                        # Seção 2: Ranking
                         pdf.set_font('Arial', 'B', 12)
                         pdf.cell(0, 10, formatar_texto('2. DESTAQUES DA EQUIPE (Top 3 Produtividade)'), 0, 1)
                         pdf.set_font('Arial', '', 12)
@@ -545,14 +531,12 @@ else:
                             pdf.cell(0, 10, formatar_texto('A equipe ainda nao finalizou chamados nesta rodada.'), 0, 1)
                         pdf.ln(5)
                         
-                        # Seção 3: Mensagem da Gestão
                         if aviso_pdf:
                             pdf.set_font('Arial', 'B', 12)
                             pdf.cell(0, 10, formatar_texto('3. DIRETRIZ DA GESTAO'), 0, 1)
                             pdf.set_font('Arial', 'I', 11)
                             pdf.multi_cell(0, 10, formatar_texto(aviso_pdf))
                             
-                        # 4. Finalização e Download
                         nome_arquivo = f"Fechamento_SAC_{datetime.now().strftime('%d%m%Y_%H%M')}.pdf"
                         pdf.output(nome_arquivo, 'F')
                         
@@ -568,6 +552,106 @@ else:
                             type="primary",
                             use_container_width=True
                         )
+            
+            # --- MURAL DE AVISOS ---
+            st.write("---")
+            st.subheader("📢 Mural de Avisos (Recado para a Equipe)")
+            aviso_atual = ler_mural()
+            novo_aviso = st.text_area("Digite o recado (deixe em branco para apagar o aviso atual):", value=aviso_atual)
+            if st.button("Salvar Aviso no Telão", use_container_width=True):
+                salvar_mural(novo_aviso)
+                st.success("✅ Mural atualizado! Todos os operadores verão este aviso na tela agora.")
+                time.sleep(1)
+                st.rerun()
+            
+            # --- ROBÔ IMPORTADOR ---
+            st.write("---")
+            st.subheader("📥 Robô Importador (Qualitor -> Esteira)")
+            with st.expander("Subir nova base de chamados (Substituição Total)"):
+                arquivo_excel = st.file_uploader("Arraste o arquivo bruto do Qualitor aqui (.xlsx ou .csv)", type=["xlsx", "xls", "csv"])
+                
+                if arquivo_excel is not None:
+                    try:
+                        with st.spinner("O Robô está lendo o arquivo..."):
+                            if arquivo_excel.name.endswith('.csv'):
+                                df_bruto = pd.read_csv(arquivo_excel, sep=None, engine='python', encoding='latin-1')
+                            else:
+                                df_bruto = pd.read_excel(arquivo_excel)
+                        
+                        if 'PROCESSO' in df_bruto.columns and 'Chamado' in df_bruto.columns:
+                            
+                            df_filtrado = df_bruto[~df_bruto['PROCESSO'].astype(str).str.contains("SOLICITANTE ATUALIZAR INFORMAÇÕES", na=False)].copy()
+                            
+                            de_para = {
+                                "(SAC) - ARREPENDIMENTO V3": "Arrependimento",
+                                "(SAC) - CANCELAMENTO V3": "Cancelamento de pedido",
+                                "(SAC) - ATRASO V3": "Atraso de Entrega",
+                                "(SAC) - PRODUTO ERRADO V3": "Produto Errado",
+                                "(SAC) - AVARIA V3": "Avaria",
+                                "(SAC) - ESTORNADOS": "Estornados",
+                                "(SAC) - EXTRAVIO V6": "Extravio"
+                            }
+                            df_filtrado['Etapa_Limpa'] = df_filtrado['PROCESSO'].map(de_para).fillna(df_filtrado['PROCESSO'])
+                            
+                            if 'Etapa' in df_filtrado.columns:
+                                filtro_mktp = df_filtrado['Etapa'].astype(str).str.contains("REEMBOLSO MKTP", na=False, case=False)
+                                df_filtrado.loc[filtro_mktp, 'Etapa_Limpa'] = "Reembolso MKTP"
+                            
+                            def definir_prioridade(linha):
+                                if "PRIORIDADE 1" in str(linha).upper():
+                                    return "🔥 Prioridade (Vence Hoje)"
+                                return "Normal ✅"
+                            
+                            df_filtrado['SLA_Final'] = df_filtrado['Lista'].apply(definir_prioridade) if 'Lista' in df_filtrado.columns else "Normal ✅"
+
+                            df_novo = pd.DataFrame()
+                            df_novo['ID'] = "" 
+                            df_novo['Dados'] = df_filtrado['Chamado'].astype(str).str.replace(r'\.0$', '', regex=True) 
+                            df_novo['Status'] = "Pendente" 
+                            df_novo['Etapa'] = df_filtrado['Etapa_Limpa'] 
+                            df_novo['SLA'] = df_filtrado['SLA_Final'] 
+                            df_novo['Responsavel'] = "" 
+                            df_novo['Inicio'] = "" 
+                            df_novo['Data_Conclusao'] = "" 
+                            
+                            df_pronto_para_subir = df_novo.drop_duplicates(subset=['Dados'])
+                            qtd_novos = len(df_pronto_para_subir)
+                            qtd_prioridade = len(df_pronto_para_subir[df_pronto_para_subir['SLA'].str.contains("Prioridade")])
+                            
+                            st.success(f"✅ Análise concluída! Este arquivo substituirá a base atual.")
+                            st.metric("Total de Chamados para a Fila", qtd_novos)
+                            if qtd_prioridade > 0:
+                                st.warning(f"⚠️ Atenção: Há {qtd_prioridade} chamados de Prioridade Máxima neste lote!")
+                            
+                            if qtd_novos > 0:
+                                st.dataframe(df_pronto_para_subir[['Dados', 'Etapa', 'SLA']].head(10), hide_index=True)
+                                
+                                if st.button("🚀 SUBSTITUIR BASE E INJETAR FILA", type="primary", use_container_width=True):
+                                    with st.spinner("Apagando base antiga, alinhando colunas e subindo nova..."):
+                                        df_limpo = df_pronto_para_subir.fillna("")
+                                        df_limpo = df_limpo.replace(['nan', 'NaN', 'NaT', 'None'], "")
+                                        
+                                        cabecalhos = ["ID", "Dados", "Status", "Etapa", "SLA", "Responsavel", "Inicio", "Data_Conclusao"]
+                                        dados_finais = [cabecalhos] + df_limpo.values.tolist()
+                                        
+                                        aba_chamados.clear()
+                                        aba_chamados.append_rows(dados_finais)
+                                        
+                                        registrar_log(usuario, f"Resetou a base e importou {qtd_novos} chamados")
+                                        
+                                        if qtd_prioridade > 0:
+                                            alertar_teams(f"🚨 ALERTA DA GESTÃO: Nova base importada com {qtd_prioridade} chamados de PRIORIDADE 1 (SLA a vencer hoje). Foco total da equipe de SAC!")
+                                        
+                                        st.success("Tudo pronto! Base antiga apagada e fila nova atualizada.")
+                                        st.cache_data.clear()
+                                        time.sleep(2)
+                                        st.rerun()
+                            else:
+                                st.info("Nenhum chamado válido encontrado no arquivo.")
+                        else:
+                            st.error("Erro: Colunas 'Chamado' ou 'PROCESSO' não encontradas.")
+                    except Exception as e:
+                        st.error(f"Erro fatal no robô: {e}")
 
             st.write("---")
             st.subheader("🚨 Monitoramento de SLA (Em Andamento)")
@@ -632,7 +716,7 @@ else:
                     cols = [c for c in df_equipe.columns if c in ['Colaboradores','Status']]
                     st.dataframe(df_equipe[cols], hide_index=True, use_container_width=True)
             with c_prod:
-                st.subheader("🏆 Produção Hoje (Log Real)")
+                st.subheader("🏆 Produção Hoje (Dados do Log)")
                 if not ranking_global.empty:
                     st.dataframe(ranking_global, hide_index=True, use_container_width=True)
                 else: st.info("Sem dados hoje.")
@@ -641,13 +725,17 @@ else:
         # 👷 VISÃO DO OPERADOR
         # ===================================================
         else:
+            texto_mural = ler_mural()
+            if texto_mural:
+                st.warning(f"📢 **AVISO DA GESTÃO:** {texto_mural}")
+                
             if status_real != "Disponivel":
                 st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
             else:
                 st.success("🟢 ONLINE - Aguardando chamados...")
                 
                 if df.empty:
-                    st.write("Sem dados na esteira.")
+                    st.write("Sem dados.")
                     if st.button("Recarregar"): st.cache_data.clear(); st.rerun()
                 else:
                     meu_chamado = df[(df['Status'] == 'Em Andamento') & (df['Responsavel'] == usuario)]
@@ -670,7 +758,7 @@ else:
                         if str(num) != 'N/A':
                             link = f"https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado={num}"
                             st.link_button("🔗 Abrir no Qualitor", link)
-                        
+                            
                         # 🧠 RESUMIDOR DE IA
                         with st.expander("✨ Resumir Histórico do Chamado (Inteligência Artificial)"):
                             historico = st.text_area("Cole aqui os assentamentos do cliente para análise rápida:", height=100)
@@ -687,7 +775,7 @@ else:
                                     st.error("IA desligada. Verifique a chave de API.")
                                 else:
                                     st.warning("Cole o texto primeiro.")
-
+                        
                         st.write("---")
                         if 'confirmar' not in st.session_state: st.session_state['confirmar'] = False
                         
@@ -695,21 +783,22 @@ else:
                             if st.button("✅ FINALIZAR", type="primary"):
                                 st.session_state['confirmar'] = True; st.rerun()
                         else:
-                            st.warning("Confirma?")
+                            st.warning("Confirma a conclusão?")
                             cy, cn = st.columns(2)
                             if cy.button("👍 SIM"):
                                 try:
                                     idx_linha = int(meu_chamado.index[0]) + 2 
                                     aba_chamados.update_cell(idx_linha, COL_STATUS, "Concluido") 
                                     aba_chamados.update_cell(idx_linha, COL_FIM, hora_texto()) 
+                                    
                                     registrar_log(usuario, f"Finalizou {num}")
                                     st.session_state['confirmar'] = False
                                     
-                                    hoje = data_hoje()
-                                    if 'Data_Conclusao' in df.columns:
-                                        feitos = len(df[(df['Status'] == 'Concluido') & (df['Responsavel'] == usuario) & (df['Data_Conclusao'].astype(str).str.contains(hoje))])
-                                    else:
-                                        feitos = 0
+                                    feitos = 0
+                                    if not ranking_global.empty:
+                                        minha_linha = ranking_global[ranking_global['Nome'] == usuario]
+                                        if not minha_linha.empty:
+                                            feitos = minha_linha.iloc[0]['Qtd']
                                         
                                     if (feitos + 1) in [10, 25, 50, 100]:
                                         st.session_state['soltar_baloes'] = True
@@ -767,7 +856,7 @@ else:
                             # 🔄 ATUALIZAÇÃO SILENCIOSA (SEM JOGUINHO, 100% PRODUÇÃO)
                             st_autorefresh(interval=60000, limit=None, key="refresh_fila_vazia")
 
-            # --- HISTÓRICO ---
+            # --- HISTÓRICO VISUAL ---
             st.write("---")
             if not df.empty:
                 hist = df[(df['Status']=='Concluido') & (df['Responsavel']==usuario)].copy()
@@ -775,16 +864,19 @@ else:
                     hoje = data_hoje()
                     hist_hoje = hist[hist['Data_Conclusao'].astype(str).str.contains(hoje)].copy()
                     qtd_hoje = len(hist_hoje)
-                    st.subheader(f"✅ Seus Concluídos Hoje: **{qtd_hoje}**")
+                    st.subheader(f"✅ Seus Concluídos nesta rodada: **{qtd_hoje}**")
+                    st.caption("O Ranking Oficial no menu lateral não zera se a gestão atualizar a base!")
                     
                     if qtd_hoje > 0:
                         hist_hoje['Link'] = "https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado=" + hist_hoje['Dados'].astype(str)
                         hist_hoje['Tempo_Gasto'] = hist_hoje.apply(lambda row: calcular_duracao_str(row.get('Inicio', ''), row.get('Data_Conclusao', '')), axis=1)
+                        
                         hist_hoje = hist_hoje.rename(columns={'Data_Conclusao': 'Horário'})
                         cols_show = ['Link', 'Etapa', 'SLA', 'Tempo_Gasto', 'Horário'] if 'SLA' in hist_hoje.columns else ['Link', 'Etapa', 'Tempo_Gasto', 'Horário']
+                        
                         st.dataframe(hist_hoje[cols_show].tail(15), hide_index=True, use_container_width=True,
                             column_config={"Link": st.column_config.LinkColumn("Chamado", display_text=r"cdchamado=(.*)")})
-                    else: st.caption("Nenhum chamado concluído por você hoje, ainda. Vamos lá!")
+                    else: st.caption("Finalize o primeiro chamado para aparecer aqui!")
 
         # ===================================================
         # 🧙‍♂️ GAVETA DO ORÁCULO (INTELIGÊNCIA ARTIFICIAL)
@@ -816,7 +908,7 @@ else:
                             st.info(resposta.text)
                     
                     except FileNotFoundError:
-                        st.error("🚨 Arquivo 'regras_operacao.txt' não encontrado. Crie o arquivo na mesma pasta do sistema e lembre de subir ele para o GitHub também!")
+                        st.error("🚨 Arquivo 'regras_operacao.txt' não encontrado. Crie o arquivo na mesma pasta do sistema.")
                     except Exception as e:
                         erro_str = str(e)
                         if "429" in erro_str or "Quota" in erro_str:
