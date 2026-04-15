@@ -6,6 +6,9 @@ import time
 import pytz
 import os
 import google.generativeai as genai
+from streamlit_autorefresh import st_autorefresh
+from fpdf import FPDF
+import unicodedata
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
@@ -136,7 +139,7 @@ elif aba_chamados is None or aba_users is None:
     st.error("Erro desconhecido ao tentar carregar as abas principais.")
     st.stop()
 
-# --- FUNÇÕES DE DADOS (COM CACHE) ---
+# --- FUNÇÕES DE DADOS E LOGS (COM CACHE) ---
 def registrar_log(usuario, acao):
     try: aba_logs.append_row([usuario, acao, hora_texto()])
     except: pass
@@ -166,6 +169,30 @@ def carregar_agenda_transp():
     if aba_transp is None: return pd.DataFrame()
     try: return pd.DataFrame(aba_transp.get_all_records())
     except: return pd.DataFrame()
+
+@st.cache_data(ttl=15)
+def carregar_logs_dia():
+    if aba_logs is None: return pd.DataFrame()
+    try:
+        dados = aba_logs.get_all_values()
+        if not dados: return pd.DataFrame()
+        if dados[0][0].lower() in ['usuario', 'nome', 'operador']:
+            df_l = pd.DataFrame(dados[1:], columns=["Usuario", "Acao", "DataHora"])
+        else:
+            df_l = pd.DataFrame(dados, columns=["Usuario", "Acao", "DataHora"])
+        return df_l
+    except: return pd.DataFrame()
+
+# --- RANKING GLOBAL (MEMÓRIA PERPÉTUA PARA O PDF) ---
+df_logs_global = carregar_logs_dia()
+ranking_global = pd.DataFrame()
+if not df_logs_global.empty:
+    hoje = data_hoje()
+    logs_hoje = df_logs_global[df_logs_global['DataHora'].astype(str).str.contains(hoje)]
+    feitos_logs = logs_hoje[logs_hoje['Acao'].astype(str).str.contains("Finalizou", case=False)]
+    if not feitos_logs.empty:
+        ranking_global = feitos_logs['Usuario'].value_counts().reset_index()
+        ranking_global.columns = ['Nome', 'Qtd']
 
 # EFEITO BALÕES
 if 'soltar_baloes' in st.session_state and st.session_state['soltar_baloes']:
@@ -455,6 +482,93 @@ else:
             st.caption(f"Última atualização: {hora_texto()}")
             if st.button("🔄 Atualizar Tudo"): st.cache_data.clear(); st.rerun()
             
+            # ===================================================
+            # 📄 GERADOR DE RELATÓRIO EXECUTIVO (PDF)
+            # ===================================================
+            st.write("---")
+            st.subheader("📄 Relatório Executivo (PDF)")
+            with st.expander("Gerar Fechamento do Turno em PDF"):
+                st.write("Este robô cruza os dados do Log (Produção) com a Fila Atual para montar o documento oficial da Diretoria.")
+                
+                aviso_pdf = st.text_input("Observação da Gestão (Opcional):", placeholder="Ex: Foco nos atrasos da Transportadora X")
+                
+                if st.button("🖨️ Mapear Dados e Criar PDF", use_container_width=True):
+                    with st.spinner("Compilando dados em tempo real..."):
+                        
+                        # 1. Função anti-bug para remover acentos (o PDF padrão não lê UTF-8 direito)
+                        def formatar_texto(texto):
+                            return unicodedata.normalize('NFKD', str(texto)).encode('ASCII', 'ignore').decode('ASCII')
+                        
+                        # 2. Captura dos KPIs Atuais
+                        pendentes_totais = len(df[df['Status'] == 'Pendente']) if not df.empty else 0
+                        prioridade_df = df[(df['Status'] == 'Pendente') & (df['SLA'].astype(str).str.contains('Prioridade', case=False))] if not df.empty and 'SLA' in df.columns else pd.DataFrame()
+                        prioridade_1_totais = len(prioridade_df)
+                        feitos_totais = ranking_global['Qtd'].sum() if not ranking_global.empty else 0
+                        
+                        # 3. Desenho do Documento PDF
+                        pdf = FPDF()
+                        pdf.add_page()
+                        
+                        # Cabeçalho
+                        pdf.set_font('Arial', 'B', 16)
+                        pdf.cell(0, 10, formatar_texto('Relatorio Executivo - Esteira Qualitor'), 0, 1, 'C')
+                        pdf.set_font('Arial', 'I', 10)
+                        pdf.cell(0, 10, formatar_texto(f'Gerado pelo Sistema Automatizado em: {hora_texto()}'), 0, 1, 'C')
+                        pdf.ln(10)
+                        
+                        # Seção 1: Volume e Crise
+                        pdf.set_font('Arial', 'B', 12)
+                        pdf.cell(0, 10, formatar_texto('1. PANORAMA OPERACIONAL (Fila vs Producao)'), 0, 1)
+                        pdf.set_font('Arial', '', 12)
+                        pdf.cell(0, 10, formatar_texto(f'> Chamados Finalizados Hoje: {feitos_totais} chamados resolvidos.'), 0, 1)
+                        pdf.cell(0, 10, formatar_texto(f'> Fila de Espera Atual: {pendentes_totais} pendentes na esteira.'), 0, 1)
+                        
+                        # Alerta Crítico
+                        if prioridade_1_totais > 0:
+                            pdf.set_text_color(255, 0, 0) # Cor Vermelha
+                            pdf.cell(0, 10, formatar_texto(f'> ALERTA DE SLA: {prioridade_1_totais} chamados de Prioridade 1 (Vencem Hoje) na fila!'), 0, 1)
+                            pdf.set_text_color(0, 0, 0) # Volta para Preto
+                        else:
+                            pdf.set_text_color(0, 128, 0)
+                            pdf.cell(0, 10, formatar_texto('> ALERTA DE SLA: Nenhum chamado de Prioridade Maxima pendente. Operacao controlada.'), 0, 1)
+                            pdf.set_text_color(0, 0, 0)
+                        pdf.ln(5)
+                        
+                        # Seção 2: Ranking
+                        pdf.set_font('Arial', 'B', 12)
+                        pdf.cell(0, 10, formatar_texto('2. DESTAQUES DA EQUIPE (Top 3 Produtividade)'), 0, 1)
+                        pdf.set_font('Arial', '', 12)
+                        if not ranking_global.empty:
+                            for i, row in ranking_global.head(3).iterrows():
+                                pdf.cell(0, 10, formatar_texto(f"{i+1} Lugar: {row['Nome']} - {row['Qtd']} concluidos"), 0, 1)
+                        else:
+                            pdf.cell(0, 10, formatar_texto('A equipe ainda nao finalizou chamados nesta rodada.'), 0, 1)
+                        pdf.ln(5)
+                        
+                        # Seção 3: Mensagem da Gestão
+                        if aviso_pdf:
+                            pdf.set_font('Arial', 'B', 12)
+                            pdf.cell(0, 10, formatar_texto('3. DIRETRIZ DA GESTAO'), 0, 1)
+                            pdf.set_font('Arial', 'I', 11)
+                            pdf.multi_cell(0, 10, formatar_texto(aviso_pdf))
+                            
+                        # 4. Finalização e Download
+                        nome_arquivo = f"Fechamento_SAC_{datetime.now().strftime('%d%m%Y_%H%M')}.pdf"
+                        pdf.output(nome_arquivo, 'F')
+                        
+                        with open(nome_arquivo, "rb") as f:
+                            bytes_pdf = f.read()
+                            
+                        st.success("✅ PDF Gerado com Sucesso!")
+                        st.download_button(
+                            label="📥 BAIXAR RELATÓRIO PDF AGORA",
+                            data=bytes_pdf,
+                            file_name=nome_arquivo,
+                            mime="application/pdf",
+                            type="primary",
+                            use_container_width=True
+                        )
+
             st.write("---")
             st.subheader("🚨 Monitoramento de SLA (Em Andamento)")
             em_andamento = pd.DataFrame()
@@ -518,17 +632,10 @@ else:
                     cols = [c for c in df_equipe.columns if c in ['Colaboradores','Status']]
                     st.dataframe(df_equipe[cols], hide_index=True, use_container_width=True)
             with c_prod:
-                st.subheader("🏆 Produção Hoje")
-                if not df.empty:
-                    conc = df[df['Status'] == 'Concluido'].copy()
-                    if 'Data_Conclusao' in conc.columns:
-                        hoje = data_hoje()
-                        feitos_hoje = conc[conc['Data_Conclusao'].astype(str).str.contains(hoje)]
-                        if not feitos_hoje.empty:
-                            resumo = feitos_hoje['Responsavel'].value_counts().reset_index()
-                            resumo.columns = ['Colaborador', 'Qtd']
-                            st.dataframe(resumo, hide_index=True, use_container_width=True)
-                        else: st.info("Sem dados hoje.")
+                st.subheader("🏆 Produção Hoje (Log Real)")
+                if not ranking_global.empty:
+                    st.dataframe(ranking_global, hide_index=True, use_container_width=True)
+                else: st.info("Sem dados hoje.")
 
         # ===================================================
         # 👷 VISÃO DO OPERADOR
@@ -540,7 +647,7 @@ else:
                 st.success("🟢 ONLINE - Aguardando chamados...")
                 
                 if df.empty:
-                    st.write("Sem dados.")
+                    st.write("Sem dados na esteira.")
                     if st.button("Recarregar"): st.cache_data.clear(); st.rerun()
                 else:
                     meu_chamado = df[(df['Status'] == 'Em Andamento') & (df['Responsavel'] == usuario)]
@@ -564,6 +671,23 @@ else:
                             link = f"https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado={num}"
                             st.link_button("🔗 Abrir no Qualitor", link)
                         
+                        # 🧠 RESUMIDOR DE IA
+                        with st.expander("✨ Resumir Histórico do Chamado (Inteligência Artificial)"):
+                            historico = st.text_area("Cole aqui os assentamentos do cliente para análise rápida:", height=100)
+                            if st.button("Mastigar Histórico"):
+                                if ia_ativa and historico:
+                                    with st.spinner("A processar os dados..."):
+                                        prompt = f"Analise este histórico de atendimento e devolva os 3 pontos mais importantes (causa, situação atual e o que o cliente quer). Seja extremamente resumido:\n\n{historico}"
+                                        try:
+                                            resp = modelo_oraculo.generate_content(prompt)
+                                            st.info(resp.text)
+                                        except Exception as e:
+                                            st.error(f"Erro na IA: {e}")
+                                elif not ia_ativa:
+                                    st.error("IA desligada. Verifique a chave de API.")
+                                else:
+                                    st.warning("Cole o texto primeiro.")
+
                         st.write("---")
                         if 'confirmar' not in st.session_state: st.session_state['confirmar'] = False
                         
@@ -638,7 +762,10 @@ else:
                                         st.cache_data.clear(); time.sleep(1); st.rerun()
                                     else: st.warning("Alguém pegou antes!"); time.sleep(1); st.rerun()
                                 except Exception as e: st.error(f"Erro ao pegar chamado: {e}")
-                        else: st.caption("Sem chamados na sua alçada.")
+                        else: 
+                            st.caption("Sem chamados na sua alçada. A fila será verificada automaticamente a cada 60 segundos.")
+                            # 🔄 ATUALIZAÇÃO SILENCIOSA (SEM JOGUINHO, 100% PRODUÇÃO)
+                            st_autorefresh(interval=60000, limit=None, key="refresh_fila_vazia")
 
             # --- HISTÓRICO ---
             st.write("---")
@@ -696,6 +823,8 @@ else:
                             st.warning("⏳ Estou respondendo a muitos operadores ao mesmo tempo! Por favor, aguarde 1 minutinho e tente perguntar de novo.")
                         else:
                             st.error(f"🚨 Erro ao processar a resposta: {erro_str}")
+                else:
+                    st.error(f"🚨 IA não configurada corretamente. Verifique a chave no secrets.toml. Erro: {erro_ia}")
 
         # ===================================================
         # 🚚 GAVETA DE TRANSPORTADORAS
