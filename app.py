@@ -46,7 +46,10 @@ except Exception as e:
 
 # --- 🚨 ALERTA MICROSOFT TEAMS ---
 def alertar_teams(mensagem):
-    webhook_url = "https://teams.microsoft.com/l/chat/48:notes/conversations?context=%7B%22contextType%22%3A%22chat%22%7D"
+    # Aqui está a sua URL do Webhook do Teams
+    webhook_url = "https://frigelar.webhook.office.com/webhookb2/ec98f756-9855-46a4-a0c4-084062e87994@d8d0f357-174f-48d7-b3b2-a5a630b0cd99/IncomingWebhook/4282a43bc29f475d9d1ca3629f01fcd6/5cd3c896-0830-48e2-9541-84f9563e933b/V2CUlXhnGitZt59misdhM4o9QEsdDxbpLgnT7PUUALYJc1"
+    
+    # A trava de segurança
     if webhook_url != "https://teams.microsoft.com/l/chat/48:notes/conversations?context=%7B%22contextType%22%3A%22chat%22%7D":
         try:
             payload = {"text": mensagem}
