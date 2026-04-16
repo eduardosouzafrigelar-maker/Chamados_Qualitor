@@ -484,10 +484,10 @@ else:
             # --- GERADOR DE RELATÓRIO EXECUTIVO (PDF) ---
             st.write("---")
             st.subheader("📄 Relatório Executivo (PDF)")
-            with st.expander("Gerar Fechamento do Turno em PDF"):
-                st.write("Este robô cruza os dados do Log (Produção) com a Fila Atual para montar o documento oficial da Diretoria.")
+            with st.expander("Gerar relatório de andamento dos chamados em PDF"):
+                st.write("Este robô cruza os dados do Log (Produção) com a Fila Atual para montar o documento de atendimento do dia.")
                 
-                aviso_pdf = st.text_input("Observação da Gestão (Opcional):", placeholder="Ex: Foco nos atrasos da Transportadora X")
+                aviso_pdf = st.text_input("Observação (Opcional):", placeholder="Ex: Foco nos atrasos da Transportadora X")
                 
                 if st.button("🖨️ Mapear Dados e Criar PDF", use_container_width=True):
                     with st.spinner("Compilando dados em tempo real..."):
@@ -511,7 +511,7 @@ else:
                         pdf.set_font('Arial', 'B', 12)
                         pdf.cell(0, 10, formatar_texto('1. PANORAMA OPERACIONAL (Fila vs Producao)'), 0, 1)
                         pdf.set_font('Arial', '', 12)
-                        pdf.cell(0, 10, formatar_texto(f'> Chamados Finalizados Hoje: {feitos_totais} chamados resolvidos.'), 0, 1)
+                        pdf.cell(0, 10, formatar_texto(f'> Chamados Finalizados Hoje: {feitos_totais} chamados atendidos.'), 0, 1)
                         pdf.cell(0, 10, formatar_texto(f'> Fila de Espera Atual: {pendentes_totais} pendentes na esteira.'), 0, 1)
                         
                         if prioridade_1_totais > 0:
