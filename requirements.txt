@@ -6,3 +6,4 @@ requests
 google-generativeai
 streamlit-autorefresh
 fpdf
+openpyxl
