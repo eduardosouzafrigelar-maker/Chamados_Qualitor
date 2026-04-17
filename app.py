@@ -15,7 +15,7 @@ import unicodedata
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
 
 # --- 👑 ADMINISTRAÇÃO ---
-ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes", "eduardosouza"] 
+ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes", "eduardosouza", "biancamoura"] 
 
 # --- 🧠 CONFIGURAÇÃO DA IA (ORÁCULO E RESUMIDOR) ---
 try:
