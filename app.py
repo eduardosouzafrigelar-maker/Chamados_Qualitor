@@ -369,14 +369,16 @@ if 'usuario' not in st.session_state:
     # O FORMULÁRIO BLINDADO (O CSS cuida de centralizá-lo, não precisamos de colunas)
     with st.form("login_form", clear_on_submit=False):
         
-        # A Logo e Textos ficam DENTRO do formulário (AGRUPADOS PARA ALINHAMENTO PERFEITO)
+        with st.form("login_form", clear_on_submit=False):
+        
+        # A Logo e Textos (ALINHAMENTO FORÇADO COM FLEXBOX)
         img_html = f'<img src="data:image/png;base64,{logo_b64}" width="180" style="margin-bottom: 15px;">' if logo_b64 else '<img src="https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png" width="180" style="margin-bottom: 15px;">'
         
         st.markdown(f'''
-        <div style="text-align: center; margin-bottom: 20px;">
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-bottom: 20px;">
             {img_html}
-            <h1 style="color: #173775; font-size: 2.2em; margin: 0 0 5px 0; font-weight: 700;">BEM-VINDO</h1>
-            <h2 style="color: gray; font-size: 1em; margin: 0; font-weight: 400;">Sistema de Chamados</h2>
+            <h1 style="color: #173775; font-size: 2.2em; margin: 0 0 5px 0; font-weight: 700; text-align: center;">BEM-VINDO</h1>
+            <h2 style="color: gray; font-size: 1em; margin: 0; font-weight: 400; text-align: center;">Sistema de Chamados</h2>
         </div>
         ''', unsafe_allow_html=True)
         
