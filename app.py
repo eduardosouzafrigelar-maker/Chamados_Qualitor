@@ -240,28 +240,16 @@ elif st.session_state['tema_escolhido'] == "Rosa":
         </style>
     """, unsafe_allow_html=True)
 
-
 # ===================================================
 # 🎫 TELA DE LOGIN CORPORATIVA BLINDADA E ALINHADA
 # ===================================================
 def render_corporate_login():
     st.markdown("""
     <style>
-        /* Fundo Azul Corporativo */
-        .stApp { 
-            background: linear-gradient(135deg, #0f1c3a 0%, #173775 100%) !important; 
-        }
-        
-        /* Esconde o menu lateral e o cabeçalho no login */
+        .stApp { background: linear-gradient(135deg, #0f1c3a 0%, #173775 100%) !important; }
         [data-testid="stSidebar"], [data-testid="stHeader"] { display: none !important; }
-        
-        /* Permite que a tela fique larga para as colunas */
-        .main .block-container { 
-            max-width: 1200px !important; 
-            padding-top: 8vh !important;
-        }
+        .main .block-container { max-width: 1200px !important; padding-top: 8vh !important; }
 
-        /* O FORMULÁRIO É O CARTÃO BRANCO! */
         [data-testid="stForm"] {
             background-color: #ffffff !important;
             padding: 50px 40px !important;
@@ -273,7 +261,6 @@ def render_corporate_login():
             margin: 0 auto !important; 
         }
 
-        /* Caixas de Texto - Retira o overflow que esconde ícones */
         [data-testid="stForm"] div[data-baseweb="input"] {
             background-color: #ffffff !important;
             border: 2px solid #e2e8f0 !important;
@@ -282,7 +269,6 @@ def render_corporate_login():
             height: 55px !important;
         }
         
-        /* O ALINHAMENTO MATEMÁTICO: O texto cravado no meio */
         [data-testid="stForm"] input {
             color: #0f172a !important;
             -webkit-text-fill-color: #0f172a !important; 
@@ -301,7 +287,6 @@ def render_corporate_login():
             line-height: 55px !important;
         }
 
-        /* --- ÍCONES SVG EMBUTIDOS E CENTRALIZADOS (50%) --- */
         [data-testid="stForm"] input[type="text"] {
             background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%23a0aec0' d='M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z'/%3E%3C/svg%3E") !important;
             background-repeat: no-repeat !important;
@@ -318,13 +303,11 @@ def render_corporate_login():
             padding-left: 50px !important; 
         }
         
-        /* Realce Azul ao Clicar na Caixa */
         [data-testid="stForm"] div[data-baseweb="input"]:focus-within {
             border-color: #38bdf8 !important;
             box-shadow: 0 0 0 1px #38bdf8 !important;
         }
         
-        /* Botão Entrar Gigante e Arredondado */
         [data-testid="stFormSubmitButton"] button {
             background-color: #173775 !important;
             color: #ffffff !important;
@@ -358,7 +341,6 @@ if 'usuario' not in st.session_state:
         if st.button("🔄 Recarregar Nomes"):
             st.cache_data.clear(); st.rerun()
 
-    # Aplica o CSS
     render_corporate_login()
     
     def get_image_base64(caminho_imagem):
@@ -370,20 +352,30 @@ if 'usuario' not in st.session_state:
             
     logo_b64 = get_image_base64("logo_frigelar.png")
     
-    # 3 Colunas
     c1, c2, c3 = st.columns([1, 1.5, 1]) 
     
     with c2:
         with st.form("login_form", clear_on_submit=False):
             
-            # --- O EMPURRÃOZINHO PARA A ESQUERDA: transform: translateX(-15px); ---
-            img_url = f"data:image/png;base64,{logo_b64}" if logo_b64 else "https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png"
+            # --- SAUDAÇÃO INTELIGENTE (BOM DIA / BOA TARDE / BOA NOITE) ---
+            hora_atual = hora_brasil().hour
+            if 6 <= hora_atual < 12:
+                saudacao = "BOM DIA"
+                sub_saudacao = "Pronto para os chamados?"
+            elif 12 <= hora_atual < 18:
+                saudacao = "BOA TARDE"
+                sub_saudacao = "Como está a esteira?"
+            else:
+                saudacao = "BOA NOITE"
+                sub_saudacao = "Quase na hora de descansar!"
+
+            img_src = f"data:image/png;base64,{logo_b64}" if logo_b64 else "https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png"
             
             st.markdown(f'''
             <div align="center" style="margin-bottom: 25px;">
-                <img src="{img_url}" style="width: 200px; display: block; margin: 0 auto; transform: translateX(-15px);">
-                <h1 style="color: #173775; font-size: 2.4em; margin: 15px 0 5px 0; font-weight: 800;">BEM-VINDO</h1>
-                <h2 style="color: #718096; font-size: 1.1em; margin: 0; font-weight: 400;">Sistema de Chamados</h2>
+                <img src="{img_src}" width="180" style="margin: 0; padding: 0;">
+                <h1 style="color: #173775; font-size: 2.4em; margin: 15px 0 5px 0; font-weight: 800;">{saudacao}</h1>
+                <h2 style="color: #718096; font-size: 1.1em; margin: 0; font-weight: 400;">{sub_saudacao}</h2>
             </div>
             ''', unsafe_allow_html=True)
             
@@ -865,6 +857,7 @@ else:
                             resumo.columns = ['Colaborador', 'Qtd']
                             st.dataframe(resumo, hide_index=True, use_container_width=True)
                         else: st.info("Sem dados hoje.")
+
             # ==========================================
             # 📊 NOVA ÁREA: DASHBOARDS E GRÁFICOS
             # ==========================================
@@ -888,17 +881,48 @@ else:
                     graf_ranking = ranking_global.set_index('Nome')
                     st.bar_chart(graf_ranking, use_container_width=True)
                 else:
-                    st.info("A equipa ainda não começou a produzir gráficos hoje.")
+                    st.info("A equipa ainda não começou a produzir hoje.")
+
+            # ==========================================
+            # 🚨 NOVA ÁREA: RADAR DE RISCO
+            # ==========================================
+            st.write("---")
+            st.subheader("🚨 Radar de Risco (Atenção Máxima)")
+            if not df.empty:
+                # Procura chamados Pendentes que tenham Prioridade 1 OU que estejam fora do prazo
+                df_risco = df[(df['Status'] == 'Pendente') & (df['SLA'].astype(str).str.contains('Prioridade 1|fora', case=False, na=False))].copy()
+                if not df_risco.empty:
+                    st.error(f"⚠️ Há {len(df_risco)} chamado(s) crítico(s) pendente(s)!")
+                    st.dataframe(df_risco[['Dados', 'Etapa', 'SLA']], hide_index=True, use_container_width=True)
+                else:
+                    st.success("✅ Nenhum chamado crítico pendente. A esteira está controlada!")
+            else:
+                st.info("Base vazia.")
+
+            # ==========================================
+            # 📖 NOVA ÁREA: DIÁRIO DE BORDO
+            # ==========================================
+            st.write("---")
+            st.subheader("📖 Diário de Bordo (Auditoria em Tempo Real)")
+            df_auditoria = carregar_logs_dia()
+            if not df_auditoria.empty:
+                hoje_str = data_hoje()
+                df_auditoria_hoje = df_auditoria[df_auditoria['DataHora'].astype(str).str.contains(hoje_str)].copy()
+                # Inverte a ordem para mostrar os mais recentes primeiro
+                df_auditoria_hoje = df_auditoria_hoje.iloc[::-1]
+                st.dataframe(df_auditoria_hoje.head(50), hide_index=True, use_container_width=True)
+            else:
+                st.info("Nenhum log registado hoje ainda.")
 
             # ==========================================
             # 📥 NOVA ÁREA: BOTÃO DE BACKUP (EXCEL)
             # ==========================================
             st.write("---")
             st.subheader("💾 Exportação de Dados (Backup)")
-            st.markdown("Baixe um *snapshot* (fotografia) exato de como a fila está neste momento.")
+            st.markdown("Baixe um *snapshot* exato de como a fila está neste momento.")
             
             if not df.empty:
-                # O 'utf-8-sig' é um truque ninja para o Excel abrir a acentuação portuguesa perfeitamente!
+                # O 'utf-8-sig' é o truque para o Excel abrir a acentuação perfeitamente!
                 csv_dados = df.to_csv(index=False).encode('utf-8-sig')
                 
                 st.download_button(
