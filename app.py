@@ -10,7 +10,7 @@ import google.generativeai as genai
 from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
 import unicodedata
-import base64
+import base64 
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
@@ -240,6 +240,7 @@ elif st.session_state['tema_escolhido'] == "Rosa":
         </style>
     """, unsafe_allow_html=True)
 
+
 # ===================================================
 # 🎫 TELA DE LOGIN CORPORATIVA BLINDADA E ALINHADA
 # ===================================================
@@ -357,25 +358,14 @@ if 'usuario' not in st.session_state:
     with c2:
         with st.form("login_form", clear_on_submit=False):
             
-            # --- SAUDAÇÃO INTELIGENTE (BOM DIA / BOA TARDE / BOA NOITE) ---
-            hora_atual = hora_brasil().hour
-            if 6 <= hora_atual < 12:
-                saudacao = "BOM DIA"
-                sub_saudacao = "Pronto para os chamados?"
-            elif 12 <= hora_atual < 18:
-                saudacao = "BOA TARDE"
-                sub_saudacao = "Como está a esteira?"
-            else:
-                saudacao = "BOA NOITE"
-                sub_saudacao = "Quase na hora de descansar!"
-
+            # --- TELA DE LOGIN FIXA E ALINHADA ---
             img_src = f"data:image/png;base64,{logo_b64}" if logo_b64 else "https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png"
             
             st.markdown(f'''
             <div align="center" style="margin-bottom: 25px;">
                 <img src="{img_src}" width="180" style="margin: 0; padding: 0;">
-                <h1 style="color: #173775; font-size: 2.4em; margin: 15px 0 5px 0; font-weight: 800;">{saudacao}</h1>
-                <h2 style="color: #718096; font-size: 1.1em; margin: 0; font-weight: 400;">{sub_saudacao}</h2>
+                <h1 style="color: #173775; font-size: 2.4em; margin: 15px 0 5px 0; font-weight: 800;">BEM-VINDO</h1>
+                <h2 style="color: #718096; font-size: 1.1em; margin: 0; font-weight: 400;">Sistema de Chamados</h2>
             </div>
             ''', unsafe_allow_html=True)
             
@@ -407,6 +397,19 @@ else:
     usuario = st.session_state['usuario']
     df = carregar_dados_chamados()
     df_equipe = carregar_status_equipe()
+
+    # --- SAUDAÇÃO DINÂMICA E INTELIGENTE ---
+    hora_atual = hora_brasil().hour
+    if 6 <= hora_atual < 12:
+        saudacao = "Bom dia"
+        sub_saudacao = "Pronto para os chamados?"
+    elif 12 <= hora_atual < 18:
+        saudacao = "Boa tarde"
+        sub_saudacao = "Como está a esteira?"
+    else:
+        saudacao = "Boa noite"
+        sub_saudacao = "Quase na hora de descansar!"
+    # ---------------------------------------
     
     if not df.empty:
         cols_planilha = df.columns.tolist()
@@ -515,7 +518,7 @@ else:
                 linha_planilha = idx + 2
 
         with st.sidebar:
-            st.header(f"👤 {usuario}")
+            st.header(f"👤 {saudacao}, {usuario}!")
             
             novo_tema = st.selectbox("🎨 Tema Visual", ["Padrão", "Matrix", "Escuro", "Rosa"], index=["Padrão", "Matrix", "Escuro", "Rosa"].index(st.session_state['tema_escolhido']))
             if novo_tema != st.session_state['tema_escolhido']:
@@ -868,7 +871,6 @@ else:
             with c_graf1:
                 st.caption("Volume de Chamados por Etapa")
                 if not df.empty and 'Etapa' in df.columns:
-                    # Conta quantos chamados há em cada etapa e gera o gráfico
                     contagem_etapas = df['Etapa'].value_counts()
                     st.bar_chart(contagem_etapas, use_container_width=True)
                 else:
@@ -877,11 +879,10 @@ else:
             with c_graf2:
                 st.caption("Top Produtividade do Dia")
                 if not ranking_global.empty:
-                    # Usa o nome do operador como eixo do gráfico
                     graf_ranking = ranking_global.set_index('Nome')
                     st.bar_chart(graf_ranking, use_container_width=True)
                 else:
-                    st.info("A equipa ainda não começou a produzir hoje.")
+                    st.info("A equipe ainda não começou a produzir hoje.")
 
             # ==========================================
             # 🚨 NOVA ÁREA: RADAR DE RISCO
@@ -889,7 +890,6 @@ else:
             st.write("---")
             st.subheader("🚨 Radar de Risco (Atenção Máxima)")
             if not df.empty:
-                # Procura chamados Pendentes que tenham Prioridade 1 OU que estejam fora do prazo
                 df_risco = df[(df['Status'] == 'Pendente') & (df['SLA'].astype(str).str.contains('Prioridade 1|fora', case=False, na=False))].copy()
                 if not df_risco.empty:
                     st.error(f"⚠️ Há {len(df_risco)} chamado(s) crítico(s) pendente(s)!")
@@ -908,11 +908,10 @@ else:
             if not df_auditoria.empty:
                 hoje_str = data_hoje()
                 df_auditoria_hoje = df_auditoria[df_auditoria['DataHora'].astype(str).str.contains(hoje_str)].copy()
-                # Inverte a ordem para mostrar os mais recentes primeiro
                 df_auditoria_hoje = df_auditoria_hoje.iloc[::-1]
                 st.dataframe(df_auditoria_hoje.head(50), hide_index=True, use_container_width=True)
             else:
-                st.info("Nenhum log registado hoje ainda.")
+                st.info("Nenhum log registrado hoje ainda.")
 
             # ==========================================
             # 📥 NOVA ÁREA: BOTÃO DE BACKUP (EXCEL)
@@ -922,9 +921,7 @@ else:
             st.markdown("Baixe um *snapshot* exato de como a fila está neste momento.")
             
             if not df.empty:
-                # O 'utf-8-sig' é o truque para o Excel abrir a acentuação perfeitamente!
                 csv_dados = df.to_csv(index=False).encode('utf-8-sig')
-                
                 st.download_button(
                     label="📥 BAIXAR FILA ATUAL (EXCEL / CSV)",
                     data=csv_dados,
@@ -943,7 +940,7 @@ else:
             if status_real != "Disponivel":
                 st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
             else:
-                st.success("🟢 ONLINE - Aguardando chamados...")
+                st.success(f"🟢 ONLINE - {sub_saudacao} (Aguardando chamados...)")
                 
                 if df.empty:
                     st.write("Sem dados.")
