@@ -240,27 +240,28 @@ elif st.session_state['tema_escolhido'] == "Rosa":
         </style>
     """, unsafe_allow_html=True)
 
+
 # ===================================================
 # 🎫 TELA DE LOGIN CORPORATIVA BLINDADA E ALINHADA
 # ===================================================
 def render_corporate_login():
     st.markdown("""
     <style>
-        /* 1. Força o fundo azul em toda a aplicação */
+        /* Fundo Azul Corporativo */
         .stApp { 
             background: linear-gradient(135deg, #0f1c3a 0%, #173775 100%) !important; 
         }
         
-        /* 2. Esconde o menu lateral e o cabeçalho no login */
+        /* Esconde o menu lateral e o cabeçalho no login */
         [data-testid="stSidebar"], [data-testid="stHeader"] { display: none !important; }
         
-        /* 3. Permite que a tela fique larga para as colunas */
+        /* Permite que a tela fique larga para as colunas */
         .main .block-container { 
             max-width: 1200px !important; 
             padding-top: 8vh !important;
         }
 
-        /* 4. O FORMULÁRIO É O CARTÃO BRANCO! */
+        /* O FORMULÁRIO É O CARTÃO BRANCO! */
         [data-testid="stForm"] {
             background-color: #ffffff !important;
             padding: 50px 40px !important;
@@ -272,7 +273,7 @@ def render_corporate_login():
             margin: 0 auto !important; 
         }
 
-        /* 5. Caixas de Texto */
+        /* Caixas de Texto - Retira o overflow que esconde ícones */
         [data-testid="stForm"] div[data-baseweb="input"] {
             background-color: #ffffff !important;
             border: 2px solid #e2e8f0 !important;
@@ -281,6 +282,7 @@ def render_corporate_login():
             height: 55px !important;
         }
         
+        /* O ALINHAMENTO MATEMÁTICO: O texto cravado no meio */
         [data-testid="stForm"] input {
             color: #0f172a !important;
             -webkit-text-fill-color: #0f172a !important; 
@@ -368,18 +370,18 @@ if 'usuario' not in st.session_state:
             
     logo_b64 = get_image_base64("logo_frigelar.png")
     
-    # 3 Colunas (a coluna do meio será mais larga para dar o visual "VSCode")
+    # 3 Colunas
     c1, c2, c3 = st.columns([1, 1.5, 1]) 
     
     with c2:
         with st.form("login_form", clear_on_submit=False):
             
-            # --- ALINHAMENTO ABSOLUTO DE TEXTO E IMAGEM (DIV ALIGN CENTER) ---
-            img_src = f"data:image/png;base64,{logo_b64}" if logo_b64 else "https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png"
+            # --- O EMPURRÃOZINHO PARA A ESQUERDA: transform: translateX(-15px); ---
+            img_url = f"data:image/png;base64,{logo_b64}" if logo_b64 else "https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png"
             
             st.markdown(f'''
             <div align="center" style="margin-bottom: 25px;">
-                <img src="{img_src}" width="180" style="margin: 0; padding: 0;">
+                <img src="{img_url}" style="width: 200px; display: block; margin: 0 auto; transform: translateX(-15px);">
                 <h1 style="color: #173775; font-size: 2.4em; margin: 15px 0 5px 0; font-weight: 800;">BEM-VINDO</h1>
                 <h2 style="color: #718096; font-size: 1.1em; margin: 0; font-weight: 400;">Sistema de Chamados</h2>
             </div>
