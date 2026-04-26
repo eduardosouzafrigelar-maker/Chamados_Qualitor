@@ -242,91 +242,130 @@ elif st.session_state['tema_escolhido'] == "Rosa":
 
 
 # ===================================================
-# 🎫 TELA DE LOGIN CORPORATIVA BLINDADA
+# 🎫 TELA DE LOGIN CORPORATIVA BLINDADA (STREAMLIT CLOUD)
 # ===================================================
 def render_corporate_login():
     st.markdown("""
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* Fundo Azul Corporativo */
-        .stApp { background: linear-gradient(135deg, #0f1c3a 0%, #173775 100%); }
-        [data-testid="stSidebar"], [data-testid="stHeader"] {display: none;}
+        /* 1. Força o fundo azul em toda a aplicação */
+        .stApp { 
+            background: linear-gradient(135deg, #0f1c3a 0%, #173775 100%) !important; 
+        }
         
-        /* O FORMULÁRIO AGORA É O CARTÃO BRANCO! Blindagem Total */
-        [data-testid="stForm"] {
-            background-color: white !important;
-            padding: 40px 30px !important;
-            border-radius: 15px !important;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
-            border: none !important;
-            margin-top: 5vh;
+        /* 2. Esconde o menu lateral e o cabeçalho enquanto não houver login */
+        [data-testid="stSidebar"], [data-testid="stHeader"] { display: none !important; }
+        
+        /* 3. Centraliza tudo perfeitamente na tela (dispensa as 3 colunas) */
+        .main .block-container { 
+            max-width: 480px !important; 
+            padding-top: 12vh !important;
+            margin: 0 auto !important;
         }
 
-        /* Estilo das caixas de texto DENTRO do form */
-        [data-testid="stForm"] div[data-baseweb="input"] {
-            border: 2px solid lightgray !important;
-            border-radius: 8px !important;
-            background-color: white !important;
-            transition: all 0.3s ease;
-        }
-        
-        /* Escudo Anti-Texto (espaço para o ícone não encostar nas letras) */
-        [data-testid="stForm"] div[data-baseweb="input"] input {
-            padding-left: 45px !important; 
-            height: 50px !important;
-            color: #0b1120 !important;
-            background-color: white !important;
-            font-size: 1.1em;
-            -webkit-text-fill-color: #0b1120 !important;
-        }
-        
-        /* Ícone Usuário (1º Campo do Form) - Gravado no lugar exato */
-        [data-testid="stForm"] [data-testid="stTextInput"]:first-of-type div[data-baseweb="input"]::before {
-            content: "\\f007";
-            font-family: "Font Awesome 6 Free"; font-weight: 900;
-            position: absolute; left: 15px; top: 15px;
-            color: gray; font-size: 1.2em; z-index: 10; pointer-events: none;
-        }
-        
-        /* Ícone Senha (Último Campo do Form) - Gravado no lugar exato */
-        [data-testid="stForm"] [data-testid="stTextInput"]:last-of-type div[data-baseweb="input"]::before {
-            content: "\\f023";
-            font-family: "Font Awesome 6 Free"; font-weight: 900;
-            position: absolute; left: 15px; top: 15px;
-            color: gray; font-size: 1.2em; z-index: 10; pointer-events: none;
-        }
-        
-        /* Realce Azul ao Clicar na Caixa de Texto */
-        [data-testid="stForm"] div[data-baseweb="input"]:focus-within {
-            border-color: #38bdf8 !important;
-            box-shadow: 0 0 10px rgba(56,189,248,0.4) !important;
-        }
-        
-        /* O ícone também fica azul ao focar a caixa! */
-        [data-testid="stForm"] div[data-testid="stTextInput"]:has(input:focus) div[data-baseweb="input"]::before {
-            color: #38bdf8 !important;
-        }
-        
-        /* Botão Entrar do Formulário */
-        [data-testid="stFormSubmitButton"] button {
-            background-color: #173775 !important;
-            color: white !important;
-            height: 50px !important;
-            border-radius: 25px !important;
-            font-size: 1.2em !important;
-            font-weight: bold !important;
+        /* 4. O FORMULÁRIO AGORA É O CARTÃO BRANCO! */
+        /* O Streamlit Cloud não consegue alterar isso */
+        [data-testid="stForm"] {
+            background-color: #ffffff !important;
+            padding: 40px 40px !important;
+            border-radius: 15px !important;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5) !important;
             border: none !important;
-            width: 100% !important;
-            margin-top: 15px !important;
+        }
+
+        /* 5. Títulos dentro do Formulário */
+        [data-testid="stForm"] h1 { 
+            color: #173775 !important; 
+            font-size: 2em !important; 
+            text-align: center !important; 
+            margin-bottom: 5px !important; 
+            font-weight: 700 !important;
+        }
+        [data-testid="stForm"] h2 { 
+            color: #718096 !important; 
+            font-size: 1.05em !important; 
+            text-align: center !important; 
+            margin-top: 0px !important; 
+            margin-bottom: 30px !important; 
+            font-weight: 400 !important;
+        }
+
+        /* 6. Caixas de Texto (Fundo branco e borda cinza) */
+        [data-testid="stForm"] div[data-baseweb="input"] {
+            background-color: #ffffff !important;
+            border: 2px solid #e2e8f0 !important;
+            border-radius: 8px !important;
             transition: all 0.3s ease !important;
         }
+        
+        /* 7. O Texto que você escreve */
+        [data-testid="stForm"] input {
+            color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important; /* Força cor preta no Cloud */
+            font-size: 1.1em !important;
+            height: 50px !important;
+            background-color: transparent !important;
+        }
+        
+        /* 8. A Cor do Placeholder (Coloque o seu usuário...) */
+        [data-testid="stForm"] input::placeholder {
+            color: #a0aec0 !important;
+            -webkit-text-fill-color: #a0aec0 !important;
+            opacity: 1 !important;
+        }
+
+        /* --- A GRANDE MÁGICA: ÍCONES SVG EMBUTIDOS NO FUNDO --- */
+        /* Isso garante que NUNCA VÃO DESALINHAR e não precisam do FontAwesome */
+        
+        /* Ícone de Bonequinho (Primeira Caixa) */
+        [data-testid="stForm"] [data-testid="stTextInput"]:nth-of-type(1) input {
+            background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%23a0aec0' d='M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z'/%3E%3C/svg%3E") !important;
+            background-repeat: no-repeat !important;
+            background-position: 15px center !important;
+            background-size: 16px !important;
+            padding-left: 45px !important; /* O Escudo! */
+        }
+
+        /* Ícone de Cadeado (Segunda Caixa) */
+        [data-testid="stForm"] [data-testid="stTextInput"]:nth-of-type(2) input {
+            background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%23a0aec0' d='M144 144v48H304V144c0-44.2-35.8-80-80-80s-80 35.8-80 80zM80 192V144C80 64.5 144.5 0 224 0s144 64.5 144 144v48h16c35.3 0 64 28.7 64 64V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V256c0-35.3 28.7-64 64-64H80z'/%3E%3C/svg%3E") !important;
+            background-repeat: no-repeat !important;
+            background-position: 15px center !important;
+            background-size: 14px !important;
+            padding-left: 45px !important; /* O Escudo! */
+        }
+        
+        /* 9. Realce Azul ao Clicar na Caixa de Texto */
+        [data-testid="stForm"] div[data-baseweb="input"]:focus-within {
+            border-color: #38bdf8 !important;
+            box-shadow: 0 0 0 1px #38bdf8 !important;
+        }
+        
+        /* 10. Botão Entrar do Formulário */
+        [data-testid="stFormSubmitButton"] button {
+            background-color: #173775 !important;
+            color: #ffffff !important;
+            border: none !important;
+            border-radius: 25px !important;
+            height: 50px !important;
+            font-weight: bold !important;
+            font-size: 1.1em !important;
+            margin-top: 15px !important;
+            width: 100% !important;
+            transition: all 0.3s ease !important;
+        }
+        
         [data-testid="stFormSubmitButton"] button:hover {
             background-color: #38bdf8 !important;
-            color: white !important;
             box-shadow: 0 5px 15px rgba(56,189,248,0.4) !important;
+            color: #ffffff !important;
         }
+        
+        /* Centralizar a logo do markdown */
+        .logo-container { text-align: center; margin-bottom: 25px; }
+        .logo-container img { max-width: 180px; }
     </style>
     """, unsafe_allow_html=True)
+
 
 if 'usuario' not in st.session_state:
     
@@ -340,10 +379,10 @@ if 'usuario' not in st.session_state:
         if st.button("🔄 Recarregar Nomes"):
             st.cache_data.clear(); st.rerun()
 
-    # Aplica o CSS do Design Corporativo
+    # Aplica a Armadura de CSS
     render_corporate_login()
     
-    # Função para tentar ler a logo local do seu PC
+    # Função para ler a logo local do seu PC ou puxar a da internet como backup
     def get_image_base64(caminho_imagem):
         try:
             with open(caminho_imagem, "rb") as img_file:
@@ -353,43 +392,39 @@ if 'usuario' not in st.session_state:
             
     logo_b64 = get_image_base64("logo_frigelar.png")
     
-    # Renderiza tudo de forma 100% nativa no Streamlit
-    c1, c2, c3 = st.columns([1, 1.2, 1]) 
-    
-    with c2:
-        # --- A GRANDE MÁGICA: O FORMULÁRIO É O CARTÃO ---
-        with st.form("login_form", clear_on_submit=False):
-            # A Logo e Textos ficam DENTRO do formulário
-            if logo_b64:
-                st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_b64}" width="180" style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div style="text-align: center;"><img src="https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png" width="180" style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
+    # O FORMULÁRIO BLINDADO (O CSS já cuida de centralizá-lo)
+    with st.form("login_form", clear_on_submit=False):
+        # A Logo
+        if logo_b64:
+            st.markdown(f'<div class="logo-container"><img src="data:image/png;base64,{logo_b64}"></div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="logo-container"><img src="https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png"></div>', unsafe_allow_html=True)
+            
+        st.markdown('<h1>BEM-VINDO</h1>', unsafe_allow_html=True)
+        st.markdown('<h2>Sistema de Chamados</h2>', unsafe_allow_html=True)
+        
+        # As Caixas de Texto
+        user_digitado = st.text_input("Utilizador", placeholder="Coloque o seu usuário", label_visibility="collapsed")
+        senha_digitada = st.text_input("Senha", type="password", placeholder="Coloque a sua senha", label_visibility="collapsed")
+        
+        # O Botão de Submissão
+        submitted = st.form_submit_button("ENTRAR", use_container_width=True)
+        
+        if submitted:
+            if user_digitado in lista_nomes and str(senha_digitada) == str(senhas.get(user_digitado, "")):
+                st.session_state['usuario'] = user_digitado
+                st.session_state['tamanho_fila_anterior'] = 0 
+                registrar_log(user_digitado, "LOGIN") 
                 
-            st.markdown('<h1 style="color: #173775; font-size: 2.2em; text-align: center; margin-top: 0; margin-bottom: 5px; font-weight: 700;">BEM-VINDO</h1>', unsafe_allow_html=True)
-            st.markdown('<h2 style="color: gray; font-size: 1em; text-align: center; font-weight: 400; margin-top: 0; margin-bottom: 25px;">Sistema de Chamados</h2>', unsafe_allow_html=True)
-            
-            # Caixas Oficiais
-            user_digitado = st.text_input("Utilizador", placeholder="Coloque o seu usuário", label_visibility="collapsed")
-            senha_digitada = st.text_input("Senha", type="password", placeholder="Coloque a sua senha", label_visibility="collapsed")
-            
-            # O Botão de Submissão Oficial
-            submitted = st.form_submit_button("ENTRAR", use_container_width=True)
-            
-            if submitted:
-                if user_digitado in lista_nomes and str(senha_digitada) == str(senhas.get(user_digitado, "")):
-                    st.session_state['usuario'] = user_digitado
-                    st.session_state['tamanho_fila_anterior'] = 0 
-                    registrar_log(user_digitado, "LOGIN") 
-                    
-                    try:
-                        idx = df_equipe.index[df_equipe['Colaboradores'] == user_digitado].tolist()[0] + 2
-                        aba_users.update_cell(idx, 3, "Disponivel")
-                        st.cache_data.clear() 
-                    except: pass
-                    
-                    st.rerun()
-                else: 
-                    st.error("❌ Login não encontrado ou senha incorreta.")
+                try:
+                    idx = df_equipe.index[df_equipe['Colaboradores'] == user_digitado].tolist()[0] + 2
+                    aba_users.update_cell(idx, 3, "Disponivel")
+                    st.cache_data.clear() 
+                except: pass
+                
+                st.rerun()
+            else: 
+                st.error("❌ Login não encontrado ou senha incorreta.")
 
 # ===================================================
 # SISTEMA LOGADO
