@@ -10,6 +10,7 @@ import google.generativeai as genai
 from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
 import unicodedata
+import base64 
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
@@ -46,10 +47,9 @@ except Exception as e:
 
 # --- 🚨 ALERTA MICROSOFT TEAMS ---
 def alertar_teams(mensagem):
-    # Aqui está a sua URL do Webhook do Teams
+    # URL do Webhook do Teams Oficial
     webhook_url = "https://frigelar.webhook.office.com/webhookb2/ec98f756-9855-46a4-a0c4-084062e87994@d8d0f357-174f-48d7-b3b2-a5a630b0cd99/IncomingWebhook/4282a43bc29f475d9d1ca3629f01fcd6/5cd3c896-0830-48e2-9541-84f9563e933b/V2CUlXhnGitZt59misdhM4o9QEsdDxbpLgnT7PUUALYJc1"
     
-    # A trava de segurança
     if webhook_url != "https://teams.microsoft.com/l/chat/48:notes/conversations?context=%7B%22contextType%22%3A%22chat%22%7D":
         try:
             payload = {"text": mensagem}
@@ -240,10 +240,102 @@ elif st.session_state['tema_escolhido'] == "Rosa":
         </style>
     """, unsafe_allow_html=True)
 
-# --- TELA DE LOGIN (COM TEXT INPUT) ---
+
+# ===================================================
+# 🎫 TELA DE LOGIN CORPORATIVA (DESIGN EXATO DA FOTO)
+# ===================================================
+def render_corporate_login():
+    st.markdown("""
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Fundo da aplicação */
+        .stApp {
+            background: linear-gradient(135deg, #0f1c3a 0%, #173775 100%);
+            background-size: cover;
+            background-position: center;
+        }
+
+        /* Oculta menus laterais no login */
+        [data-testid="stSidebar"], [data-testid="stHeader"] {display: none;}
+        
+        /* Transforma a Coluna 2 no Cartão Branco de Login */
+        div[data-testid="column"]:nth-of-type(2) {
+            background-color: white;
+            padding: 40px 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            margin-top: 10vh; /* Empurra o cartão para o centro da tela */
+        }
+
+        /* Textos do Cartão */
+        .login-title { color: #173775; font-size: 2.2em; text-align: center; margin-top: 15px; margin-bottom: 0px; font-weight: 700; }
+        .login-subtitle { color: gray; font-size: 1em; text-align: center; font-weight: 400; margin-top: 5px; margin-bottom: 25px; }
+
+        /* As Caixas de Texto (O Segredo do PADDING) */
+        div[data-testid="stTextInput"] div[data-baseweb="input"] {
+            border: 2px solid lightgray !important;
+            border-radius: 8px !important;
+            background-color: white !important;
+            transition: all 0.3s ease;
+        }
+        
+        /* O ESCUDO ANTI-TEXTO! Empurra a escrita 45px para a direita */
+        div[data-testid="stTextInput"] div[data-baseweb="input"] input {
+            padding-left: 45px !important; 
+            height: 50px !important;
+            color: #0b1120 !important;
+        }
+        
+        /* Injeta o Ícone de Usuário na Primeira Caixa */
+        div[data-testid="stTextInput"]:has(input[placeholder*="utilizador"]) div[data-baseweb="input"]::before {
+            content: "\\f007"; 
+            font-family: "Font Awesome 6 Free"; font-weight: 900;
+            position: absolute; left: 15px; top: 16px; /* Cravado no centro vertical! */
+            color: gray; font-size: 1.2em; z-index: 10; transition: color 0.3s;
+            pointer-events: none;
+        }
+
+        /* Injeta o Ícone de Cadeado na Segunda Caixa */
+        div[data-testid="stTextInput"]:has(input[type="password"]) div[data-baseweb="input"]::before {
+            content: "\\f023"; 
+            font-family: "Font Awesome 6 Free"; font-weight: 900;
+            position: absolute; left: 15px; top: 16px; /* Cravado no centro vertical! */
+            color: gray; font-size: 1.2em; z-index: 10; transition: color 0.3s;
+            pointer-events: none;
+        }
+        
+        /* Realce Azul ao Clicar (Foco) */
+        div[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within {
+            border-color: #38bdf8 !important;
+            box-shadow: 0 0 10px rgba(56,189,248,0.4) !important;
+        }
+        /* O ícone também fica azul ao clicar! */
+        div[data-testid="stTextInput"]:has(input:focus) div[data-baseweb="input"]::before {
+            color: #38bdf8 !important;
+        }
+        
+        /* Botão Entrar Gigante */
+        .stButton > button {
+            background-color: #173775;
+            color: white;
+            height: 50px;
+            border-radius: 25px;
+            font-size: 1.2em;
+            font-weight: bold;
+            border: none;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+        .stButton > button:hover {
+            background-color: #38bdf8;
+            color: white;
+            box-shadow: 0 5px 15px rgba(56,189,248,0.4);
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+
 if 'usuario' not in st.session_state:
-    st.title("🎫 Login do Sistema")
-    st.markdown("### Acesse com as suas credenciais")
     
     df_equipe = carregar_status_equipe()
     if not df_equipe.empty and 'Colaboradores' in df_equipe.columns:
@@ -254,26 +346,54 @@ if 'usuario' not in st.session_state:
         st.warning("⚠️ Planilha a carregar. Clique abaixo se demorar.")
         if st.button("🔄 Recarregar Nomes"):
             st.cache_data.clear(); st.rerun()
+
+    # Aplica o CSS do Design Corporativo
+    render_corporate_login()
     
-    c1, c2 = st.columns(2)
-    user_digitado = c1.text_input("Usuário:", placeholder="Digite o seu nome de usuário")
-    senha_digitada = c2.text_input("Palavra-passe:", type="password", placeholder="A sua senha")
+    # Função para ler a logo local do seu PC / GitHub
+    def get_image_base64(caminho_imagem):
+        try:
+            with open(caminho_imagem, "rb") as img_file:
+                return base64.b64encode(img_file.read()).decode()
+        except:
+            return "" 
+            
+    logo_b64 = get_image_base64("logo_frigelar.png")
     
-    if st.button("Entrar no Sistema", use_container_width=True):
-        if user_digitado in lista_nomes and str(senha_digitada) == str(senhas.get(user_digitado, "")):
-            st.session_state['usuario'] = user_digitado
-            st.session_state['tamanho_fila_anterior'] = 0 
-            registrar_log(user_digitado, "LOGIN") 
+    # Layout em 3 colunas (a do meio será o cartão)
+    c1, c2, c3 = st.columns([1, 1.2, 1]) 
+    
+    with c2:
+        # A Logo
+        if logo_b64:
+            st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_b64}" width="180"></div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<h1 style="color:#173775; font-size: 2.5em; text-align: center; margin-bottom:0px;">❄️</h1>', unsafe_allow_html=True)
             
-            try:
-                idx = df_equipe.index[df_equipe['Colaboradores'] == user_digitado].tolist()[0] + 2
-                aba_users.update_cell(idx, 3, "Disponivel")
-                st.cache_data.clear() 
-            except: pass
-            
-            st.rerun()
-        else: 
-            st.error("❌ Usuário não encontrado ou senha incorreta.")
+        # Textos
+        st.markdown('<h1 class="login-title">BEM-VINDO</h1>', unsafe_allow_html=True)
+        st.markdown('<h2 class="login-subtitle">Sistema de Chamados</h2>', unsafe_allow_html=True)
+        
+        # Caixas de Texto (Os ícones vão aparecer aqui dentro via CSS)
+        user_digitado = st.text_input("Utilizador", placeholder="Coloque o seu usuário", label_visibility="collapsed")
+        senha_digitada = st.text_input("Senha", type="password", placeholder="Coloque a sua senha", label_visibility="collapsed")
+        
+        # Botão
+        if st.button("ENTRAR", use_container_width=True):
+            if user_digitado in lista_nomes and str(senha_digitada) == str(senhas.get(user_digitado, "")):
+                st.session_state['usuario'] = user_digitado
+                st.session_state['tamanho_fila_anterior'] = 0 
+                registrar_log(user_digitado, "LOGIN") 
+                
+                try:
+                    idx = df_equipe.index[df_equipe['Colaboradores'] == user_digitado].tolist()[0] + 2
+                    aba_users.update_cell(idx, 3, "Disponivel")
+                    st.cache_data.clear() 
+                except: pass
+                
+                st.rerun()
+            else: 
+                st.error("❌ Login não encontrado ou senha incorreta.")
 
 # --- SISTEMA LOGADO ---
 else:
@@ -357,7 +477,7 @@ else:
         c6.metric("🔥 Andamento Atrasado", and_fora)
         
         st.write("---")
-        st.markdown("### 🏆 Fechamentos (Hoje)")
+        st.markdown("### 🏆 Fechamentos da Equipa (Hoje)")
         c7, c8 = st.columns(2)
         c7.metric("Total Concluído (Geral)", feitos_total)
         with c8:
@@ -365,7 +485,7 @@ else:
                 melhor = ranking_global.iloc[0]
                 st.metric("🥇 Destaque do Dia", f"{melhor['Nome']} ({melhor['Qtd']})")
             else:
-                st.metric("🥇 Destaque do Dia", "Aguardando...")
+                st.metric("🥇 Destaque do Dia", "A aguardar...")
         
         time.sleep(15)
         st.cache_data.clear(); st.rerun()
@@ -583,7 +703,7 @@ else:
                         
                         if 'PROCESSO' in df_bruto.columns and 'Chamado' in df_bruto.columns:
                             
-                            df_filtrado = df_bruto[~df_bruto['PROCESSO'].astype(str).str.contains("SOLICITANTE ATUALIZAR INFORMAÇÕES", na=False)].copy()
+                            df_filtrado = df_bruto[~df_bruto['PROCESSO'].astype(str).str.contains("SOLICITANTE - ATUALIZAR INFORMAÇÕES", na=False)].copy()
                             
                             de_para = {
                                 "(SAC) - ARREPENDIMENTO V3": "Arrependimento",
@@ -719,19 +839,22 @@ else:
                     cols = [c for c in df_equipe.columns if c in ['Colaboradores','Status']]
                     st.dataframe(df_equipe[cols], hide_index=True, use_container_width=True)
             with c_prod:
-                st.subheader("🏆 Produção Hoje (Dados do Log)")
-                if not ranking_global.empty:
-                    st.dataframe(ranking_global, hide_index=True, use_container_width=True)
-                else: st.info("Sem dados hoje.")
+                st.subheader("🏆 Produção Hoje")
+                if not df.empty:
+                    conc = df[df['Status'] == 'Concluido'].copy()
+                    if 'Data_Conclusao' in conc.columns:
+                        hoje = data_hoje()
+                        feitos_hoje = conc[conc['Data_Conclusao'].astype(str).str.contains(hoje)]
+                        if not feitos_hoje.empty:
+                            resumo = feitos_hoje['Responsavel'].value_counts().reset_index()
+                            resumo.columns = ['Colaborador', 'Qtd']
+                            st.dataframe(resumo, hide_index=True, use_container_width=True)
+                        else: st.info("Sem dados hoje.")
 
         # ===================================================
         # 👷 VISÃO DO OPERADOR
         # ===================================================
         else:
-            texto_mural = ler_mural()
-            if texto_mural:
-                st.warning(f"📢 **RECADOS:** {texto_mural}")
-                
             if status_real != "Disponivel":
                 st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
             else:
@@ -761,11 +884,11 @@ else:
                         if str(num) != 'N/A':
                             link = f"https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado={num}"
                             st.link_button("🔗 Abrir no Qualitor", link)
-                            
+                        
                         # 🧠 RESUMIDOR DE IA
                         with st.expander("✨ Resumir Histórico do Chamado (Inteligência Artificial)"):
                             historico = st.text_area("Cole aqui os assentamentos do cliente para análise rápida:", height=100)
-                            if st.button("Resumir Histórico"):
+                            if st.button("Mastigar Histórico"):
                                 if ia_ativa and historico:
                                     with st.spinner("A processar os dados..."):
                                         prompt = f"Analise este histórico de atendimento e devolva os 3 pontos mais importantes (causa, situação atual e o que o cliente quer). Seja extremamente resumido:\n\n{historico}"
@@ -786,22 +909,21 @@ else:
                             if st.button("✅ FINALIZAR", type="primary"):
                                 st.session_state['confirmar'] = True; st.rerun()
                         else:
-                            st.warning("Confirma a conclusão?")
+                            st.warning("Confirma?")
                             cy, cn = st.columns(2)
                             if cy.button("👍 SIM"):
                                 try:
                                     idx_linha = int(meu_chamado.index[0]) + 2 
                                     aba_chamados.update_cell(idx_linha, COL_STATUS, "Concluido") 
                                     aba_chamados.update_cell(idx_linha, COL_FIM, hora_texto()) 
-                                    
                                     registrar_log(usuario, f"Finalizou {num}")
                                     st.session_state['confirmar'] = False
                                     
-                                    feitos = 0
-                                    if not ranking_global.empty:
-                                        minha_linha = ranking_global[ranking_global['Nome'] == usuario]
-                                        if not minha_linha.empty:
-                                            feitos = minha_linha.iloc[0]['Qtd']
+                                    hoje = data_hoje()
+                                    if 'Data_Conclusao' in df.columns:
+                                        feitos = len(df[(df['Status'] == 'Concluido') & (df['Responsavel'] == usuario) & (df['Data_Conclusao'].astype(str).str.contains(hoje))])
+                                    else:
+                                        feitos = 0
                                         
                                     if (feitos + 1) in [10, 25, 50, 100]:
                                         st.session_state['soltar_baloes'] = True
@@ -859,7 +981,7 @@ else:
                             # 🔄 ATUALIZAÇÃO SILENCIOSA (SEM JOGUINHO, 100% PRODUÇÃO)
                             st_autorefresh(interval=60000, limit=None, key="refresh_fila_vazia")
 
-            # --- HISTÓRICO VISUAL ---
+            # --- HISTÓRICO ---
             st.write("---")
             if not df.empty:
                 hist = df[(df['Status']=='Concluido') & (df['Responsavel']==usuario)].copy()
@@ -867,19 +989,16 @@ else:
                     hoje = data_hoje()
                     hist_hoje = hist[hist['Data_Conclusao'].astype(str).str.contains(hoje)].copy()
                     qtd_hoje = len(hist_hoje)
-                    st.subheader(f"✅ Seus Concluídos nesta rodada: **{qtd_hoje}**")
-                    st.caption("O Ranking Oficial no menu lateral não zera se a gestão atualizar a base!")
+                    st.subheader(f"✅ Seus Concluídos Hoje: **{qtd_hoje}**")
                     
                     if qtd_hoje > 0:
                         hist_hoje['Link'] = "https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado=" + hist_hoje['Dados'].astype(str)
                         hist_hoje['Tempo_Gasto'] = hist_hoje.apply(lambda row: calcular_duracao_str(row.get('Inicio', ''), row.get('Data_Conclusao', '')), axis=1)
-                        
                         hist_hoje = hist_hoje.rename(columns={'Data_Conclusao': 'Horário'})
                         cols_show = ['Link', 'Etapa', 'SLA', 'Tempo_Gasto', 'Horário'] if 'SLA' in hist_hoje.columns else ['Link', 'Etapa', 'Tempo_Gasto', 'Horário']
-                        
                         st.dataframe(hist_hoje[cols_show].tail(15), hide_index=True, use_container_width=True,
                             column_config={"Link": st.column_config.LinkColumn("Chamado", display_text=r"cdchamado=(.*)")})
-                    else: st.caption("Finalize o primeiro chamado para aparecer aqui!")
+                    else: st.caption("Nenhum chamado concluído por você hoje, ainda. Vamos lá!")
 
         # ===================================================
         # 🧙‍♂️ GAVETA DO ORÁCULO (INTELIGÊNCIA ARTIFICIAL)
@@ -911,7 +1030,7 @@ else:
                             st.info(resposta.text)
                     
                     except FileNotFoundError:
-                        st.error("🚨 Arquivo 'regras_operacao.txt' não encontrado. Crie o arquivo na mesma pasta do sistema.")
+                        st.error("🚨 Arquivo 'regras_operacao.txt' não encontrado. Crie o arquivo na mesma pasta do sistema e lembre de subir ele para o GitHub também!")
                     except Exception as e:
                         erro_str = str(e)
                         if "429" in erro_str or "Quota" in erro_str:
