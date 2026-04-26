@@ -6,18 +6,16 @@ import time
 import pytz
 import os
 import requests
-import streamlit.components.v1 as components
 import google.generativeai as genai
 from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
 import unicodedata
-import base64
 
 # --- CONFIGURAÇÃO INICIAL ---
-st.set_page_config(page_title="Sistema de Chamados", page_icon="🎫", layout="wide")
+st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
 
 # --- 👑 ADMINISTRAÇÃO ---
-ADMINS = ["Eduardo", "EduardoSouza", "Gestor"] 
+ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes", "eduardosouza", "biancamoura"] 
 
 # --- 🧠 CONFIGURAÇÃO DA IA (ORÁCULO E RESUMIDOR) ---
 try:
@@ -48,8 +46,10 @@ except Exception as e:
 
 # --- 🚨 ALERTA MICROSOFT TEAMS ---
 def alertar_teams(mensagem):
-    # COLOQUE AQUI O WEBHOOK DO SEU CANAL DO TEAMS (A TI PODE FORNECER)
-    webhook_url = "https://teams.microsoft.com/l/chat/48:notes/conversations?context=%7B%22contextType%22%3A%22chat%22%7D"
+    # Aqui está a sua URL do Webhook do Teams
+    webhook_url = "https://frigelar.webhook.office.com/webhookb2/ec98f756-9855-46a4-a0c4-084062e87994@d8d0f357-174f-48d7-b3b2-a5a630b0cd99/IncomingWebhook/4282a43bc29f475d9d1ca3629f01fcd6/5cd3c896-0830-48e2-9541-84f9563e933b/V2CUlXhnGitZt59misdhM4o9QEsdDxbpLgnT7PUUALYJc1"
+    
+    # A trava de segurança
     if webhook_url != "https://teams.microsoft.com/l/chat/48:notes/conversations?context=%7B%22contextType%22%3A%22chat%22%7D":
         try:
             payload = {"text": mensagem}
@@ -57,7 +57,7 @@ def alertar_teams(mensagem):
         except:
             pass
 
-# --- CONEXÃO ULTRA-OTIMIZADA ---
+# --- CONEXÃO BLINDADA (ANTI-TRAVAMENTO DO GOOGLE) ---
 @st.cache_resource
 def conectar_e_abrir_abas():
     try:
@@ -70,17 +70,27 @@ def conectar_e_abrir_abas():
             except:
                 return "🚨 ERRO: Credenciais não encontradas.", None, None, None, None
         
-        sh = client.open("Sistema_Chamados_TESTE")
-        abas = sh.worksheets()
-        
-        aba_chamados = abas[0] if len(abas) > 0 else None
-        aba_users = abas[1] if len(abas) > 1 else None
-        aba_logs = abas[2] if len(abas) > 2 else None
-        aba_transp = abas[3] if len(abas) > 3 else None
-        
-        return sh, aba_chamados, aba_users, aba_logs, aba_transp
+        erro_real = ""
+        for tentativa in range(10):
+            try:
+                sh = client.open("Chamados_Qualitor") # NOME OFICIAL DE PRODUÇÃO
+                abas = sh.worksheets()
+                
+                if len(abas) >= 2:
+                    aba_chamados = abas[0] if len(abas) > 0 else None
+                    aba_users = abas[1] if len(abas) > 1 else None
+                    aba_logs = abas[2] if len(abas) > 2 else None
+                    aba_transp = abas[3] if len(abas) > 3 else None
+                    return sh, aba_chamados, aba_users, aba_logs, aba_transp
+                else:
+                    erro_real = "A planilha tem menos de 2 abas visíveis."
+            except Exception as e:
+                erro_real = str(e)
+                time.sleep(2 + tentativa)
+                
+        return f"Falha após 10 tentativas. Erro: {erro_real}", None, None, None, None
     except Exception as e:
-        return f"Erro do Google: {str(e)}", None, None, None, None
+        return f"Erro Crítico: {str(e)}", None, None, None, None
 
 # --- FUNÇÕES DE TEMPO E LÓGICA ---
 def hora_brasil():
@@ -152,7 +162,6 @@ def carregar_logs_dia():
     try:
         dados = aba_logs.get_all_values()
         if not dados: return pd.DataFrame()
-        
         if dados[0][0].lower() in ['usuario', 'nome', 'operador']:
             df_l = pd.DataFrame(dados[1:], columns=["Usuario", "Acao", "DataHora"])
         else:
@@ -193,7 +202,7 @@ if 'soltar_baloes' in st.session_state and st.session_state['soltar_baloes']:
 if 'tema_escolhido' not in st.session_state:
     st.session_state['tema_escolhido'] = "Padrão"
 
-if st.session_state['tema_escolhido'] == "Hacker Matrix":
+if st.session_state['tema_escolhido'] == "Matrix":
     st.markdown("""
         <style>
         .stApp { background-color: #0D0D0D; }
@@ -206,7 +215,7 @@ if st.session_state['tema_escolhido'] == "Hacker Matrix":
         .stTextInput>div>div>input { background-color: #000; color: #00FF41; border: 1px solid #00FF41; }
         </style>
     """, unsafe_allow_html=True)
-elif st.session_state['tema_escolhido'] == "Dark Night":
+elif st.session_state['tema_escolhido'] == "Escuro":
     st.markdown("""
         <style>
         .stApp { background-color: #0b1120; }
@@ -217,7 +226,7 @@ elif st.session_state['tema_escolhido'] == "Dark Night":
         [data-testid="stSidebar"] { background-color: #0f172a; border-right: 1px solid #1e293b; }
         </style>
     """, unsafe_allow_html=True)
-elif st.session_state['tema_escolhido'] == "Rosa Fofo":
+elif st.session_state['tema_escolhido'] == "Rosa":
     st.markdown("""
         <style>
         .stApp { background-color: #fff0f5; }
@@ -231,10 +240,10 @@ elif st.session_state['tema_escolhido'] == "Rosa Fofo":
         </style>
     """, unsafe_allow_html=True)
 
-# ===================================================
-# 🎫 TELA DE LOGIN CORPORATIVA BLINDADA
-# ===================================================
+# --- TELA DE LOGIN (COM TEXT INPUT) ---
 if 'usuario' not in st.session_state:
+    st.title("🎫 Login do Sistema")
+    st.markdown("### Acesse com as suas credenciais")
     
     df_equipe = carregar_status_equipe()
     if not df_equipe.empty and 'Colaboradores' in df_equipe.columns:
@@ -245,134 +254,28 @@ if 'usuario' not in st.session_state:
         st.warning("⚠️ Planilha a carregar. Clique abaixo se demorar.")
         if st.button("🔄 Recarregar Nomes"):
             st.cache_data.clear(); st.rerun()
-
-    # --- CSS BLINDADO PARA O STREAMLIT ---
-    st.markdown("""
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        /* Fundo Azul Corporativo */
-        .stApp { background: linear-gradient(135deg, #0f1c3a 0%, #173775 100%); }
-        [data-testid="stSidebar"], [data-testid="stHeader"] {display: none;}
-        
-        /* Transforma a coluna central no Cartão Branco */
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(2) {
-            background-color: white;
-            padding: 40px 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            margin-top: 10vh;
-        }
-
-        /* Estilo das caixas de texto */
-        div[data-testid="stTextInput"] div[data-baseweb="input"] {
-            border: 2px solid lightgray !important;
-            border-radius: 8px !important;
-            background-color: white !important;
-            transition: all 0.3s ease;
-        }
-        
-        /* Escudo Anti-Texto (espaço para o ícone não encostar nas letras) */
-        div[data-testid="stTextInput"] div[data-baseweb="input"] input {
-            padding-left: 45px !important; 
-            height: 50px !important;
-            color: #0b1120 !important;
-            font-size: 1.1em;
-        }
-        
-        /* Ícone Usuário (1º Campo) - Gravado no lugar exato */
-        div[data-testid="stTextInput"]:nth-of-type(1) div[data-baseweb="input"]::before {
-            content: "\\f007";
-            font-family: "Font Awesome 6 Free"; font-weight: 900;
-            position: absolute; left: 15px; top: 15px;
-            color: gray; font-size: 1.2em; z-index: 10;
-        }
-        
-        /* Ícone Senha (2º Campo) - Gravado no lugar exato */
-        div[data-testid="stTextInput"]:nth-of-type(2) div[data-baseweb="input"]::before {
-            content: "\\f023";
-            font-family: "Font Awesome 6 Free"; font-weight: 900;
-            position: absolute; left: 15px; top: 15px;
-            color: gray; font-size: 1.2em; z-index: 10;
-        }
-        
-        /* Realce Azul ao Clicar na Caixa de Texto */
-        div[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within {
-            border-color: #38bdf8 !important;
-            box-shadow: 0 0 10px rgba(56,189,248,0.4) !important;
-        }
-        
-        /* O ícone também fica azul ao focar a caixa! */
-        div[data-testid="stTextInput"]:has(input:focus) div[data-baseweb="input"]::before {
-            color: #38bdf8 !important;
-        }
-        
-        /* Botão Entrar */
-        div[data-testid="stButton"] button {
-            background-color: #173775;
-            color: white;
-            height: 50px;
-            border-radius: 25px;
-            font-size: 1.2em;
-            font-weight: bold;
-            border: none;
-            width: 100%;
-            margin-top: 15px;
-            transition: all 0.3s ease;
-        }
-        div[data-testid="stButton"] button:hover {
-            background-color: #38bdf8;
-            color: white;
-            box-shadow: 0 5px 15px rgba(56,189,248,0.4);
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
-    def get_image_base64(caminho_imagem):
-        try:
-            with open(caminho_imagem, "rb") as img_file:
-                return base64.b64encode(img_file.read()).decode()
-        except:
-            return "" 
-            
-    logo_b64 = get_image_base64("logo_frigelar.png")
     
-    # Renderiza tudo de forma 100% nativa no Streamlit
-    c1, c2, c3 = st.columns([1, 1.2, 1]) 
+    c1, c2 = st.columns(2)
+    user_digitado = c1.text_input("Usuário:", placeholder="Digite o seu nome de usuário")
+    senha_digitada = c2.text_input("Palavra-passe:", type="password", placeholder="A sua senha")
     
-    with c2:
-        # A Logo e Textos
-        if logo_b64:
-            st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_b64}" width="180" style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<h1 style="color:#173775; font-size: 3em; text-align: center; margin-bottom:10px;">❄️</h1>', unsafe_allow_html=True)
+    if st.button("Entrar no Sistema", use_container_width=True):
+        if user_digitado in lista_nomes and str(senha_digitada) == str(senhas.get(user_digitado, "")):
+            st.session_state['usuario'] = user_digitado
+            st.session_state['tamanho_fila_anterior'] = 0 
+            registrar_log(user_digitado, "LOGIN") 
             
-        st.markdown('<h1 style="color: #173775; font-size: 2.2em; text-align: center; margin-top: 0; margin-bottom: 5px; font-weight: 700;">BEM-VINDO</h1>', unsafe_allow_html=True)
-        st.markdown('<h2 style="color: gray; font-size: 1em; text-align: center; font-weight: 400; margin-top: 0; margin-bottom: 25px;">Sistema de Chamados</h2>', unsafe_allow_html=True)
-        
-        # Os Campos de Entrada Nativos
-        user_digitado = st.text_input("Utilizador", placeholder="Coloque o seu usuário", label_visibility="collapsed")
-        senha_digitada = st.text_input("Senha", type="password", placeholder="Coloque a sua senha", label_visibility="collapsed")
-        
-        # O Botão
-        if st.button("ENTRAR", use_container_width=True):
-            if user_digitado in lista_nomes and str(senha_digitada) == str(senhas.get(user_digitado, "")):
-                st.session_state['usuario'] = user_digitado
-                st.session_state['tamanho_fila_anterior'] = 0 
-                registrar_log(user_digitado, "LOGIN") 
-                
-                try:
-                    idx = df_equipe.index[df_equipe['Colaboradores'] == user_digitado].tolist()[0] + 2
-                    aba_users.update_cell(idx, 3, "Disponivel")
-                    st.cache_data.clear() 
-                except: pass
-                
-                st.rerun()
-            else: 
-                st.error("❌ Login não encontrado ou senha incorreta.")
+            try:
+                idx = df_equipe.index[df_equipe['Colaboradores'] == user_digitado].tolist()[0] + 2
+                aba_users.update_cell(idx, 3, "Disponivel")
+                st.cache_data.clear() 
+            except: pass
+            
+            st.rerun()
+        else: 
+            st.error("❌ Usuário não encontrado ou senha incorreta.")
 
-# ===================================================
-# SISTEMA LOGADO
-# ===================================================
+# --- SISTEMA LOGADO ---
 else:
     usuario = st.session_state['usuario']
     df = carregar_dados_chamados()
@@ -454,7 +357,7 @@ else:
         c6.metric("🔥 Andamento Atrasado", and_fora)
         
         st.write("---")
-        st.markdown("### 🏆 Fechamentos da Equipa (Hoje)")
+        st.markdown("### 🏆 Fechamentos (Hoje)")
         c7, c8 = st.columns(2)
         c7.metric("Total Concluído (Geral)", feitos_total)
         with c8:
@@ -462,7 +365,7 @@ else:
                 melhor = ranking_global.iloc[0]
                 st.metric("🥇 Destaque do Dia", f"{melhor['Nome']} ({melhor['Qtd']})")
             else:
-                st.metric("🥇 Destaque do Dia", "A aguardar...")
+                st.metric("🥇 Destaque do Dia", "Aguardando...")
         
         time.sleep(15)
         st.cache_data.clear(); st.rerun()
@@ -487,7 +390,7 @@ else:
         with st.sidebar:
             st.header(f"👤 {usuario}")
             
-            novo_tema = st.selectbox("🎨 Tema Visual", ["Padrão", "Hacker Matrix", "Dark Night", "Rosa Fofo"], index=["Padrão", "Hacker Matrix", "Dark Night", "Rosa Fofo"].index(st.session_state['tema_escolhido']))
+            novo_tema = st.selectbox("🎨 Tema Visual", ["Padrão", "Matrix", "Escuro", "Rosa"], index=["Padrão", "Matrix", "Escuro", "Rosa"].index(st.session_state['tema_escolhido']))
             if novo_tema != st.session_state['tema_escolhido']:
                 st.session_state['tema_escolhido'] = novo_tema
                 st.rerun()
@@ -512,38 +415,38 @@ else:
                     aba_users.update_cell(linha_planilha, 3, "Pausa")
                     registrar_log(usuario, "Entrou em Pausa")
                     st.cache_data.clear(); st.rerun()
-            if st.button("🚽 Casa de Banho"):
+            if st.button("🚽 Banheiro"):
                 if linha_planilha:
                     aba_users.update_cell(linha_planilha, 3, "Banheiro")
-                    registrar_log(usuario, "Foi à Casa de Banho")
+                    registrar_log(usuario, "Foi ao Banheiro")
                     st.cache_data.clear(); st.rerun()
             
             st.divider()
             
-            with st.expander("⚙️ O Meu Perfil (Mudar Palavra-Passe)"):
-                nova_senha = st.text_input("Digite a nova palavra-passe:", type="password")
-                confirma_senha = st.text_input("Confirme a nova palavra-passe:", type="password")
+            with st.expander("⚙️ Meu Perfil (Mudar Senha)"):
+                nova_senha = st.text_input("Digite a nova senha:", type="password")
+                confirma_senha = st.text_input("Confirme a nova senha:", type="password")
                 
-                if st.button("Guardar Nova Palavra-Passe", use_container_width=True):
+                if st.button("Salvar Nova Senha", use_container_width=True):
                     if nova_senha == confirma_senha and len(nova_senha) >= 4:
                         try:
                             cols_users = df_equipe.columns.tolist()
                             if "Senha" in cols_users:
                                 col_senha_idx = cols_users.index("Senha") + 1
                                 aba_users.update_cell(linha_planilha, col_senha_idx, nova_senha)
-                                registrar_log(usuario, "Mudou a própria palavra-passe")
-                                st.success("✅ Palavra-passe atualizada! Use-a no próximo login.")
+                                registrar_log(usuario, "Mudou a própria senha")
+                                st.success("✅ Senha atualizada! Use no próximo login.")
                                 st.cache_data.clear()
                             else:
                                 st.error("Erro: Coluna 'Senha' não encontrada.")
                         except Exception as e:
-                            st.error(f"Erro ao mudar palavra-passe: {e}")
+                            st.error(f"Erro ao mudar senha: {e}")
                     else:
-                        st.warning("⚠️ As palavras-passe não coincidem ou são curtas (mín. 4).")
+                        st.warning("⚠️ Senhas não batem ou são curtas (mín. 4).")
             
             st.divider()
             
-            st.subheader("🏆 O Seu Desempenho Hoje")
+            st.subheader("🏆 Seu Desempenho Hoje")
             if not ranking_global.empty:
                 minha_posicao = ranking_global.index[ranking_global['Nome'] == usuario].tolist()
                 
@@ -551,10 +454,10 @@ else:
                     pos_real = minha_posicao[0] + 1
                     qtd_minha = ranking_global.iloc[minha_posicao[0]]['Qtd']
                     st.markdown(f"✅ **Feitos hoje:** {qtd_minha} chamados")
-                    if pos_real == 1: st.success(f"🥇 Está no 1º Lugar da equipa!")
-                    elif pos_real == 2: st.info(f"🥈 Está no 2º Lugar da equipa!")
-                    elif pos_real == 3: st.warning(f"🥉 Está no 3º Lugar da equipa!")
-                    else: st.markdown(f"📍 **A sua posição no ranking:** {pos_real}º Lugar")
+                    if pos_real == 1: st.success(f"🥇 1º Lugar na equipe!")
+                    elif pos_real == 2: st.info(f"🥈 2º Lugar na equipe!")
+                    elif pos_real == 3: st.warning(f"🥉 3º Lugar na equipe!")
+                    else: st.markdown(f"📍 **Sua posição no ranking:** {pos_real}º Lugar")
                 else: st.caption("Ainda não finalizou chamados hoje.")
 
                 if usuario in ADMINS:
@@ -574,23 +477,20 @@ else:
         # 👑 VISÃO DO GESTOR (ADMIN)
         # ===================================================
         if modo_gerente:
-            st.title("📊 Painel de Controlo - Gestão")
+            st.title("📊 Painel de Controle - Gestão")
             st.caption(f"Última atualização: {hora_texto()}")
             if st.button("🔄 Atualizar Tudo"): st.cache_data.clear(); st.rerun()
-
-            # ===================================================
-            # 📄 GERADOR DE RELATÓRIO EXECUTIVO (PDF)
-            # ===================================================
+            
+            # --- GERADOR DE RELATÓRIO EXECUTIVO (PDF) ---
             st.write("---")
             st.subheader("📄 Relatório Executivo (PDF)")
-            with st.expander("Gerar Fechamento do Turno em PDF"):
-                st.write("Este robô cruza os dados do Log (Produção) com a Fila Atual para montar o documento oficial da Diretoria.")
+            with st.expander("Gerar relatório de andamento dos chamados em PDF"):
+                st.write("Este robô cruza os dados do Log (Produção) com a Fila Atual para montar o documento de atendimento do dia.")
                 
-                aviso_pdf = st.text_input("Observação da Gestão (Opcional):", placeholder="Ex: Foco nos atrasos da Transportadora X")
+                aviso_pdf = st.text_input("Observação (Opcional):", placeholder="Ex: Foco nos atrasos da Transportadora X")
                 
                 if st.button("🖨️ Mapear Dados e Criar PDF", use_container_width=True):
                     with st.spinner("Compilando dados em tempo real..."):
-                        
                         def formatar_texto(texto):
                             return unicodedata.normalize('NFKD', str(texto)).encode('ASCII', 'ignore').decode('ASCII')
                         
@@ -598,13 +498,12 @@ else:
                         prioridade_df = df[(df['Status'] == 'Pendente') & (df['SLA'].astype(str).str.contains('Prioridade', case=False))] if not df.empty and 'SLA' in df.columns else pd.DataFrame()
                         prioridade_1_totais = len(prioridade_df)
                         feitos_totais = ranking_global['Qtd'].sum() if not ranking_global.empty else 0
-                        aviso = ler_mural()
                         
                         pdf = FPDF()
                         pdf.add_page()
                         
                         pdf.set_font('Arial', 'B', 16)
-                        pdf.cell(0, 10, formatar_texto('Relatorio Executivo - SAC Frigelar'), 0, 1, 'C')
+                        pdf.cell(0, 10, formatar_texto('Relatorio Executivo - Esteira Qualitor'), 0, 1, 'C')
                         pdf.set_font('Arial', 'I', 10)
                         pdf.cell(0, 10, formatar_texto(f'Gerado pelo Sistema Automatizado em: {hora_texto()}'), 0, 1, 'C')
                         pdf.ln(10)
@@ -612,7 +511,7 @@ else:
                         pdf.set_font('Arial', 'B', 12)
                         pdf.cell(0, 10, formatar_texto('1. PANORAMA OPERACIONAL (Fila vs Producao)'), 0, 1)
                         pdf.set_font('Arial', '', 12)
-                        pdf.cell(0, 10, formatar_texto(f'> Chamados Finalizados Hoje: {feitos_totais} chamados resolvidos.'), 0, 1)
+                        pdf.cell(0, 10, formatar_texto(f'> Chamados Finalizados Hoje: {feitos_totais} chamados atendidos.'), 0, 1)
                         pdf.cell(0, 10, formatar_texto(f'> Fila de Espera Atual: {pendentes_totais} pendentes na esteira.'), 0, 1)
                         
                         if prioridade_1_totais > 0:
@@ -630,9 +529,9 @@ else:
                         pdf.set_font('Arial', '', 12)
                         if not ranking_global.empty:
                             for i, row in ranking_global.head(3).iterrows():
-                                pdf.cell(0, 10, formatar_texto(f"{i+1} Lugar: {row['Nome']} - {row['Qtd']} concluídos"), 0, 1)
+                                pdf.cell(0, 10, formatar_texto(f"{i+1} Lugar: {row['Nome']} - {row['Qtd']} concluidos"), 0, 1)
                         else:
-                            pdf.cell(0, 10, formatar_texto('A equipe ainda não finalizou chamados nesta rodada.'), 0, 1)
+                            pdf.cell(0, 10, formatar_texto('A equipe ainda nao finalizou chamados nesta rodada.'), 0, 1)
                         pdf.ln(5)
                         
                         if aviso_pdf:
@@ -657,24 +556,26 @@ else:
                             use_container_width=True
                         )
             
+            # --- MURAL DE AVISOS ---
             st.write("---")
-            st.subheader("📢 Mural de Avisos (Recado para a Equipa)")
+            st.subheader("📢 Mural de Avisos (Recado para a Equipe)")
             aviso_atual = ler_mural()
             novo_aviso = st.text_area("Digite o recado (deixe em branco para apagar o aviso atual):", value=aviso_atual)
-            if st.button("Guardar Aviso no Telão", use_container_width=True):
+            if st.button("Salvar Aviso no Telão", use_container_width=True):
                 salvar_mural(novo_aviso)
-                st.success("✅ Mural atualizado! Todos os operadores verão este aviso no ecrã agora.")
+                st.success("✅ Mural atualizado! Todos os operadores verão este aviso na tela agora.")
                 time.sleep(1)
                 st.rerun()
             
+            # --- ROBÔ IMPORTADOR ---
             st.write("---")
             st.subheader("📥 Robô Importador (Qualitor -> Esteira)")
             with st.expander("Subir nova base de chamados (Substituição Total)"):
-                arquivo_excel = st.file_uploader("Arraste o ficheiro bruto do Qualitor aqui (.xlsx ou .csv)", type=["xlsx", "xls", "csv"])
+                arquivo_excel = st.file_uploader("Arraste o arquivo bruto do Qualitor aqui (.xlsx ou .csv)", type=["xlsx", "xls", "csv"])
                 
                 if arquivo_excel is not None:
                     try:
-                        with st.spinner("O Robô está a ler o ficheiro..."):
+                        with st.spinner("O Robô está lendo o arquivo..."):
                             if arquivo_excel.name.endswith('.csv'):
                                 df_bruto = pd.read_csv(arquivo_excel, sep=None, engine='python', encoding='latin-1')
                             else:
@@ -720,7 +621,7 @@ else:
                             qtd_novos = len(df_pronto_para_subir)
                             qtd_prioridade = len(df_pronto_para_subir[df_pronto_para_subir['SLA'].str.contains("Prioridade")])
                             
-                            st.success(f"✅ Análise concluída! Este ficheiro substituirá a base atual.")
+                            st.success(f"✅ Análise concluída! Este arquivo substituirá a base atual.")
                             st.metric("Total de Chamados para a Fila", qtd_novos)
                             if qtd_prioridade > 0:
                                 st.warning(f"⚠️ Atenção: Há {qtd_prioridade} chamados de Prioridade Máxima neste lote!")
@@ -729,7 +630,7 @@ else:
                                 st.dataframe(df_pronto_para_subir[['Dados', 'Etapa', 'SLA']].head(10), hide_index=True)
                                 
                                 if st.button("🚀 SUBSTITUIR BASE E INJETAR FILA", type="primary", use_container_width=True):
-                                    with st.spinner("A apagar base antiga, alinhar colunas e subir nova..."):
+                                    with st.spinner("Apagando base antiga, alinhando colunas e subindo nova..."):
                                         df_limpo = df_pronto_para_subir.fillna("")
                                         df_limpo = df_limpo.replace(['nan', 'NaN', 'NaT', 'None'], "")
                                         
@@ -742,21 +643,21 @@ else:
                                         registrar_log(usuario, f"Resetou a base e importou {qtd_novos} chamados")
                                         
                                         if qtd_prioridade > 0:
-                                            alertar_teams(f"🚨 ALERTA DA GESTÃO: Nova base importada com {qtd_prioridade} chamados de PRIORIDADE 1 (SLA a vencer hoje). Foco total da equipa de SAC!")
+                                            alertar_teams(f"🚨 ALERTA DA GESTÃO: Nova base importada com {qtd_prioridade} chamados de PRIORIDADE 1 (SLA a vencer hoje). Foco total da equipe de SAC!")
                                         
                                         st.success("Tudo pronto! Base antiga apagada e fila nova atualizada.")
                                         st.cache_data.clear()
                                         time.sleep(2)
                                         st.rerun()
                             else:
-                                st.info("Nenhum chamado válido encontrado no ficheiro.")
+                                st.info("Nenhum chamado válido encontrado no arquivo.")
                         else:
                             st.error("Erro: Colunas 'Chamado' ou 'PROCESSO' não encontradas.")
                     except Exception as e:
                         st.error(f"Erro fatal no robô: {e}")
 
             st.write("---")
-            st.subheader("🚨 Monitorização de SLA (Em Andamento)")
+            st.subheader("🚨 Monitoramento de SLA (Em Andamento)")
             em_andamento = pd.DataFrame()
             if not df.empty:
                 em_andamento = df[df['Status'] == 'Em Andamento'].copy()
@@ -778,7 +679,7 @@ else:
                         })
                     df_sla = pd.DataFrame(lista_sla)
                     st.dataframe(df_sla, hide_index=True, use_container_width=True)
-                else: st.success("Equipa livre! Nenhum chamado em andamento.")
+                else: st.success("Equipe livre! Nenhum chamado em andamento.")
 
             st.write("---")
             st.subheader("🛠️ Ações de Emergência")
@@ -790,7 +691,7 @@ else:
                     linha_trava = int(selecionado.split(" - ")[0].replace("L", ""))
                     col_dev, col_forcar = st.columns(2)
 
-                    if col_dev.button("↩️ Devolver à Fila"):
+                    if col_dev.button("↩️ Devolver para Fila"):
                         try:
                             aba_chamados.update_cell(linha_trava, COL_STATUS, "Pendente") 
                             aba_chamados.update_cell(linha_trava, COL_RESP, "") 
@@ -813,7 +714,7 @@ else:
             st.write("---")
             c_status, c_prod = st.columns(2)
             with c_status:
-                st.subheader("🚦 Equipa Online")
+                st.subheader("🚦 Equipe Online")
                 if not df_equipe.empty:
                     cols = [c for c in df_equipe.columns if c in ['Colaboradores','Status']]
                     st.dataframe(df_equipe[cols], hide_index=True, use_container_width=True)
@@ -829,12 +730,12 @@ else:
         else:
             texto_mural = ler_mural()
             if texto_mural:
-                st.warning(f"📢 **AVISO DA GESTÃO:** {texto_mural}")
+                st.warning(f"📢 **RECADOS:** {texto_mural}")
                 
             if status_real != "Disponivel":
-                st.warning(f"⚠️ **ESTÁ EM PAUSA ({status_real})**")
+                st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
             else:
-                st.success("🟢 ONLINE - A aguardar chamados...")
+                st.success("🟢 ONLINE - Aguardando chamados...")
                 
                 if df.empty:
                     st.write("Sem dados.")
@@ -844,7 +745,7 @@ else:
                     
                     if len(meu_chamado) > 0:
                         if len(meu_chamado) > 1:
-                            st.warning("⚠️ Atenção: Tem mais de um chamado em andamento. Finalize este primeiro.")
+                            st.warning("⚠️ Atenção: Você tem mais de um chamado em andamento. Finalize este primeiro.")
 
                         dados = meu_chamado.iloc[0]
                         num = dados.get('Dados', 'N/A') 
@@ -861,10 +762,10 @@ else:
                             link = f"https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado={num}"
                             st.link_button("🔗 Abrir no Qualitor", link)
                             
-                        # 🧠 NOVO: RESUMIDOR DE IA
+                        # 🧠 RESUMIDOR DE IA
                         with st.expander("✨ Resumir Histórico do Chamado (Inteligência Artificial)"):
                             historico = st.text_area("Cole aqui os assentamentos do cliente para análise rápida:", height=100)
-                            if st.button("Mastigar Histórico"):
+                            if st.button("Resumir Histórico"):
                                 if ia_ativa and historico:
                                     with st.spinner("A processar os dados..."):
                                         prompt = f"Analise este histórico de atendimento e devolva os 3 pontos mais importantes (causa, situação atual e o que o cliente quer). Seja extremamente resumido:\n\n{historico}"
@@ -906,7 +807,7 @@ else:
                                         st.session_state['soltar_baloes'] = True
                                         
                                     st.cache_data.clear(); time.sleep(1); st.rerun()
-                                except Exception as e: st.error(f"Erro ao guardar: {e}")
+                                except Exception as e: st.error(f"Erro ao salvar: {e}")
                             
                             if cn.button("❌ NÃO"):
                                 st.session_state['confirmar'] = False; st.rerun()
@@ -929,7 +830,7 @@ else:
                         st.session_state['tamanho_fila_anterior'] = qtd 
                         
                         c_f, c_r = st.columns([3,1])
-                        c_f.metric("A Sua Fila de Espera (Permitida)", qtd)
+                        c_f.metric("Sua Fila de Espera (Permitida)", qtd)
                         if c_r.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
                         
                         if qtd > 0:
@@ -955,8 +856,7 @@ else:
                                 except Exception as e: st.error(f"Erro ao pegar chamado: {e}")
                         else: 
                             st.caption("Sem chamados na sua alçada. A fila será verificada automaticamente a cada 60 segundos.")
-                            
-                            # 🔄 ATUALIZAÇÃO SILENCIOSA (SEM PERDER O LOGIN)
+                            # 🔄 ATUALIZAÇÃO SILENCIOSA (SEM JOGUINHO, 100% PRODUÇÃO)
                             st_autorefresh(interval=60000, limit=None, key="refresh_fila_vazia")
 
             # --- HISTÓRICO VISUAL ---
@@ -967,7 +867,7 @@ else:
                     hoje = data_hoje()
                     hist_hoje = hist[hist['Data_Conclusao'].astype(str).str.contains(hoje)].copy()
                     qtd_hoje = len(hist_hoje)
-                    st.subheader(f"✅ Os Seus Concluídos nesta rodada: **{qtd_hoje}**")
+                    st.subheader(f"✅ Seus Concluídos nesta rodada: **{qtd_hoje}**")
                     st.caption("O Ranking Oficial no menu lateral não zera se a gestão atualizar a base!")
                     
                     if qtd_hoje > 0:
@@ -985,8 +885,8 @@ else:
         # 🧙‍♂️ GAVETA DO ORÁCULO (INTELIGÊNCIA ARTIFICIAL)
         # ===================================================
         st.write("---")
-        with st.expander("🧙‍♂️ Oráculo Frigelar - Tire as suas dúvidas da operação"):
-            pergunta = st.text_input("O que precisa de saber?", placeholder="Ex: Qual o prazo de devolução?")
+        with st.expander("🧙‍♂️ Oráculo Frigelar - Tire suas dúvidas da operação"):
+            pergunta = st.text_input("O que você precisa saber?", placeholder="Ex: Qual o prazo de devolução?")
             
             if st.button("✨ Perguntar ao Oráculo"):
                 if ia_ativa:
@@ -994,7 +894,7 @@ else:
                         with open("regras_operacao.txt", "r", encoding="utf-8") as f:
                             texto_regras = f.read()
                         
-                        with st.spinner("O Oráculo está a consultar o manual..."):
+                        with st.spinner("O Oráculo está consultando o manual..."):
                             comando = f"""
                             Você é o Oráculo, um assistente interno sênior do SAC da Frigelar.
                             Responda a pergunta do operador baseando-se EXCLUSIVAMENTE no manual abaixo.
@@ -1011,9 +911,13 @@ else:
                             st.info(resposta.text)
                     
                     except FileNotFoundError:
-                        st.error("🚨 Ficheiro 'regras_operacao.txt' não encontrado. Crie o ficheiro na mesma pasta do sistema.")
+                        st.error("🚨 Arquivo 'regras_operacao.txt' não encontrado. Crie o arquivo na mesma pasta do sistema.")
                     except Exception as e:
-                        st.error(f"🚨 Erro ao processar a resposta: {e}")
+                        erro_str = str(e)
+                        if "429" in erro_str or "Quota" in erro_str:
+                            st.warning("⏳ Estou respondendo a muitos operadores ao mesmo tempo! Por favor, aguarde 1 minutinho e tente perguntar de novo.")
+                        else:
+                            st.error(f"🚨 Erro ao processar a resposta: {erro_str}")
                 else:
                     st.error(f"🚨 IA não configurada corretamente. Verifique a chave no secrets.toml. Erro: {erro_ia}")
 
@@ -1021,15 +925,15 @@ else:
         # 🚚 GAVETA DE TRANSPORTADORAS
         # ===================================================
         st.write("---")
-        with st.expander("🚚 Agenda de Contactos - Transportadoras"):
+        with st.expander("🚚 Agenda de Contatos - Transportadoras"):
             df_transp = carregar_agenda_transp()
             if not df_transp.empty and 'Transportadora' in df_transp.columns:
                 lista_t = [str(t) for t in df_transp['Transportadora'].dropna().unique() if str(t).strip() != '']
                 escolha_t = st.selectbox("Selecione a Transportadora:", [""] + sorted(lista_t))
                 if escolha_t:
                     dados_t = df_transp[df_transp['Transportadora'] == escolha_t].iloc[0]
-                    email_t = dados_t.get('Email_Transp', 'Não registado')
-                    email_l = dados_t.get('Email_Logistica', 'Não registado')
+                    email_t = dados_t.get('Email_Transp', 'Não cadastrado')
+                    email_l = dados_t.get('Email_Logistica', 'Não cadastrado')
                     
                     c_t, c_l = st.columns(2)
                     with c_t:
