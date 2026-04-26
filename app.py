@@ -10,7 +10,7 @@ import google.generativeai as genai
 from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
 import unicodedata
-import base64 
+import base64
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
@@ -240,28 +240,27 @@ elif st.session_state['tema_escolhido'] == "Rosa":
         </style>
     """, unsafe_allow_html=True)
 
-
 # ===================================================
 # 🎫 TELA DE LOGIN CORPORATIVA BLINDADA E ALINHADA
 # ===================================================
 def render_corporate_login():
     st.markdown("""
     <style>
-        /* Fundo Azul Corporativo */
+        /* 1. Força o fundo azul em toda a aplicação */
         .stApp { 
             background: linear-gradient(135deg, #0f1c3a 0%, #173775 100%) !important; 
         }
         
-        /* Esconde o menu lateral e o cabeçalho no login */
+        /* 2. Esconde o menu lateral e o cabeçalho no login */
         [data-testid="stSidebar"], [data-testid="stHeader"] { display: none !important; }
         
-        /* Permite que a tela fique larga para as colunas */
+        /* 3. Permite que a tela fique larga para as colunas */
         .main .block-container { 
             max-width: 1200px !important; 
             padding-top: 8vh !important;
         }
 
-        /* O FORMULÁRIO É O CARTÃO BRANCO! */
+        /* 4. O FORMULÁRIO É O CARTÃO BRANCO! */
         [data-testid="stForm"] {
             background-color: #ffffff !important;
             padding: 50px 40px !important;
@@ -273,7 +272,7 @@ def render_corporate_login():
             margin: 0 auto !important; 
         }
 
-        /* Caixas de Texto - Retira o overflow que esconde ícones */
+        /* 5. Caixas de Texto */
         [data-testid="stForm"] div[data-baseweb="input"] {
             background-color: #ffffff !important;
             border: 2px solid #e2e8f0 !important;
@@ -282,7 +281,6 @@ def render_corporate_login():
             height: 55px !important;
         }
         
-        /* O ALINHAMENTO MATEMÁTICO: O texto cravado no meio */
         [data-testid="stForm"] input {
             color: #0f172a !important;
             -webkit-text-fill-color: #0f172a !important; 
@@ -346,7 +344,6 @@ def render_corporate_login():
     </style>
     """, unsafe_allow_html=True)
 
-
 if 'usuario' not in st.session_state:
     
     df_equipe = carregar_status_equipe()
@@ -377,13 +374,13 @@ if 'usuario' not in st.session_state:
     with c2:
         with st.form("login_form", clear_on_submit=False):
             
-            # --- ALINHAMENTO ABSOLUTO DE TEXTO E IMAGEM ---
-            img_html = f'<img src="data:image/png;base64,{logo_b64}" style="width: 180px; display: block; margin: 0 auto;">' if logo_b64 else '<img src="https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png" style="width: 180px; display: block; margin: 0 auto;">'
+            # --- ALINHAMENTO ABSOLUTO DE TEXTO E IMAGEM (DIV ALIGN CENTER) ---
+            img_src = f"data:image/png;base64,{logo_b64}" if logo_b64 else "https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png"
             
             st.markdown(f'''
-            <div style="text-align: center; margin-bottom: 25px;">
-                {img_html}
-                <h1 style="color: #173775; font-size: 2.4em; margin: 15px 0 5px 0; font-weight: 800; line-height: 1.2;">BEM-VINDO</h1>
+            <div align="center" style="margin-bottom: 25px;">
+                <img src="{img_src}" width="180" style="margin: 0; padding: 0;">
+                <h1 style="color: #173775; font-size: 2.4em; margin: 15px 0 5px 0; font-weight: 800;">BEM-VINDO</h1>
                 <h2 style="color: #718096; font-size: 1.1em; margin: 0; font-weight: 400;">Sistema de Chamados</h2>
             </div>
             ''', unsafe_allow_html=True)
