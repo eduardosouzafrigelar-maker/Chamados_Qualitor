@@ -865,6 +865,52 @@ else:
                             resumo.columns = ['Colaborador', 'Qtd']
                             st.dataframe(resumo, hide_index=True, use_container_width=True)
                         else: st.info("Sem dados hoje.")
+            # ==========================================
+            # 📊 NOVA ÁREA: DASHBOARDS E GRÁFICOS
+            # ==========================================
+            st.write("---")
+            st.subheader("📊 Dashboards Analíticos")
+            c_graf1, c_graf2 = st.columns(2)
+
+            with c_graf1:
+                st.caption("Volume de Chamados por Etapa")
+                if not df.empty and 'Etapa' in df.columns:
+                    # Conta quantos chamados há em cada etapa e gera o gráfico
+                    contagem_etapas = df['Etapa'].value_counts()
+                    st.bar_chart(contagem_etapas, use_container_width=True)
+                else:
+                    st.info("Sem dados de etapas para mostrar.")
+
+            with c_graf2:
+                st.caption("Top Produtividade do Dia")
+                if not ranking_global.empty:
+                    # Usa o nome do operador como eixo do gráfico
+                    graf_ranking = ranking_global.set_index('Nome')
+                    st.bar_chart(graf_ranking, use_container_width=True)
+                else:
+                    st.info("A equipa ainda não começou a produzir gráficos hoje.")
+
+            # ==========================================
+            # 📥 NOVA ÁREA: BOTÃO DE BACKUP (EXCEL)
+            # ==========================================
+            st.write("---")
+            st.subheader("💾 Exportação de Dados (Backup)")
+            st.markdown("Baixe um *snapshot* (fotografia) exato de como a fila está neste momento.")
+            
+            if not df.empty:
+                # O 'utf-8-sig' é um truque ninja para o Excel abrir a acentuação portuguesa perfeitamente!
+                csv_dados = df.to_csv(index=False).encode('utf-8-sig')
+                
+                st.download_button(
+                    label="📥 BAIXAR FILA ATUAL (EXCEL / CSV)",
+                    data=csv_dados,
+                    file_name=f"Backup_Qualitor_{datetime.now().strftime('%d-%m-%Y_%H%M')}.csv",
+                    mime="text/csv",
+                    type="primary",
+                    use_container_width=True
+                )
+            else:
+                st.warning("A base está vazia, não há o que exportar.")
 
         # ===================================================
         # 👷 VISÃO DO OPERADOR
