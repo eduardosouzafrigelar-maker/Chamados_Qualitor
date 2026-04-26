@@ -10,7 +10,7 @@ import google.generativeai as genai
 from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
 import unicodedata
-import base64 
+import base64
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
@@ -247,10 +247,21 @@ elif st.session_state['tema_escolhido'] == "Rosa":
 def render_corporate_login():
     st.markdown("""
     <style>
-        .stApp { background: linear-gradient(135deg, #0f1c3a 0%, #173775 100%) !important; }
+        /* Fundo Azul Corporativo */
+        .stApp { 
+            background: linear-gradient(135deg, #0f1c3a 0%, #173775 100%) !important; 
+        }
+        
+        /* Esconde o menu lateral e o cabeçalho no login */
         [data-testid="stSidebar"], [data-testid="stHeader"] { display: none !important; }
-        .main .block-container { max-width: 1200px !important; padding-top: 8vh !important; }
+        
+        /* Permite que a tela fique larga para as colunas */
+        .main .block-container { 
+            max-width: 1200px !important; 
+            padding-top: 8vh !important;
+        }
 
+        /* O FORMULÁRIO É O CARTÃO BRANCO! */
         [data-testid="stForm"] {
             background-color: #ffffff !important;
             padding: 50px 40px !important;
@@ -262,6 +273,7 @@ def render_corporate_login():
             margin: 0 auto !important; 
         }
 
+        /* Caixas de Texto - Retira o overflow que esconde ícones */
         [data-testid="stForm"] div[data-baseweb="input"] {
             background-color: #ffffff !important;
             border: 2px solid #e2e8f0 !important;
@@ -270,6 +282,7 @@ def render_corporate_login():
             height: 55px !important;
         }
         
+        /* O ALINHAMENTO MATEMÁTICO: O texto cravado no meio */
         [data-testid="stForm"] input {
             color: #0f172a !important;
             -webkit-text-fill-color: #0f172a !important; 
@@ -288,6 +301,7 @@ def render_corporate_login():
             line-height: 55px !important;
         }
 
+        /* --- ÍCONES SVG EMBUTIDOS E CENTRALIZADOS (50%) --- */
         [data-testid="stForm"] input[type="text"] {
             background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%23a0aec0' d='M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z'/%3E%3C/svg%3E") !important;
             background-repeat: no-repeat !important;
@@ -304,11 +318,13 @@ def render_corporate_login():
             padding-left: 50px !important; 
         }
         
+        /* Realce Azul ao Clicar na Caixa */
         [data-testid="stForm"] div[data-baseweb="input"]:focus-within {
             border-color: #38bdf8 !important;
             box-shadow: 0 0 0 1px #38bdf8 !important;
         }
         
+        /* Botão Entrar Gigante e Arredondado */
         [data-testid="stFormSubmitButton"] button {
             background-color: #173775 !important;
             color: #ffffff !important;
@@ -358,12 +374,12 @@ if 'usuario' not in st.session_state:
     with c2:
         with st.form("login_form", clear_on_submit=False):
             
-            # --- TELA DE LOGIN FIXA E ALINHADA ---
+            # --- ALINHAMENTO COM EMPURRÃO TRANSLATEX ---
             img_src = f"data:image/png;base64,{logo_b64}" if logo_b64 else "https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png"
             
             st.markdown(f'''
             <div align="center" style="margin-bottom: 25px;">
-                <img src="{img_src}" width="180" style="margin: 0; padding: 0;">
+                <img src="{img_src}" style="width: 200px; display: block; margin: 0 auto; transform: translateX(-15px);">
                 <h1 style="color: #173775; font-size: 2.4em; margin: 15px 0 5px 0; font-weight: 800;">BEM-VINDO</h1>
                 <h2 style="color: #718096; font-size: 1.1em; margin: 0; font-weight: 400;">Sistema de Chamados</h2>
             </div>
