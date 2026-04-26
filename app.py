@@ -6,7 +6,6 @@ import time
 import pytz
 import os
 import requests
-import streamlit.components.v1 as components
 import google.generativeai as genai
 from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
@@ -163,7 +162,6 @@ def carregar_logs_dia():
     try:
         dados = aba_logs.get_all_values()
         if not dados: return pd.DataFrame()
-        
         if dados[0][0].lower() in ['usuario', 'nome', 'operador']:
             df_l = pd.DataFrame(dados[1:], columns=["Usuario", "Acao", "DataHora"])
         else:
@@ -254,24 +252,18 @@ def render_corporate_login():
         .stApp { background: linear-gradient(135deg, #0f1c3a 0%, #173775 100%); }
         [data-testid="stSidebar"], [data-testid="stHeader"] {display: none;}
         
-        /* Transforma a coluna central no Cartão Branco */
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-of-type(2) {
-            background-color: white;
-            padding: 40px 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            margin-top: 10vh;
-        }
-
-        /* Estilo do Formulário Blindado (Esconde bordas originais) */
+        /* O FORMULÁRIO AGORA É O CARTÃO BRANCO! Blindagem Total */
         [data-testid="stForm"] {
+            background-color: white !important;
+            padding: 40px 30px !important;
+            border-radius: 15px !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
             border: none !important;
-            padding: 0 !important;
-            background: transparent !important;
+            margin-top: 5vh;
         }
 
-        /* Estilo das caixas de texto */
-        div[data-testid="stTextInput"] div[data-baseweb="input"] {
+        /* Estilo das caixas de texto DENTRO do form */
+        [data-testid="stForm"] div[data-baseweb="input"] {
             border: 2px solid lightgray !important;
             border-radius: 8px !important;
             background-color: white !important;
@@ -279,23 +271,25 @@ def render_corporate_login():
         }
         
         /* Escudo Anti-Texto (espaço para o ícone não encostar nas letras) */
-        div[data-testid="stTextInput"] div[data-baseweb="input"] input {
+        [data-testid="stForm"] div[data-baseweb="input"] input {
             padding-left: 45px !important; 
             height: 50px !important;
             color: #0b1120 !important;
+            background-color: white !important;
             font-size: 1.1em;
+            -webkit-text-fill-color: #0b1120 !important;
         }
         
-        /* Ícone Usuário (1º Campo do Form) */
-        [data-testid="stTextInput"]:first-of-type div[data-baseweb="input"]::before {
+        /* Ícone Usuário (1º Campo do Form) - Gravado no lugar exato */
+        [data-testid="stForm"] [data-testid="stTextInput"]:first-of-type div[data-baseweb="input"]::before {
             content: "\\f007";
             font-family: "Font Awesome 6 Free"; font-weight: 900;
             position: absolute; left: 15px; top: 15px;
             color: gray; font-size: 1.2em; z-index: 10; pointer-events: none;
         }
         
-        /* Ícone Senha (Último Campo do Form) */
-        [data-testid="stTextInput"]:last-of-type div[data-baseweb="input"]::before {
+        /* Ícone Senha (Último Campo do Form) - Gravado no lugar exato */
+        [data-testid="stForm"] [data-testid="stTextInput"]:last-of-type div[data-baseweb="input"]::before {
             content: "\\f023";
             font-family: "Font Awesome 6 Free"; font-weight: 900;
             position: absolute; left: 15px; top: 15px;
@@ -303,13 +297,13 @@ def render_corporate_login():
         }
         
         /* Realce Azul ao Clicar na Caixa de Texto */
-        div[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within {
+        [data-testid="stForm"] div[data-baseweb="input"]:focus-within {
             border-color: #38bdf8 !important;
             box-shadow: 0 0 10px rgba(56,189,248,0.4) !important;
         }
         
         /* O ícone também fica azul ao focar a caixa! */
-        div[data-testid="stTextInput"]:has(input:focus) div[data-baseweb="input"]::before {
+        [data-testid="stForm"] div[data-testid="stTextInput"]:has(input:focus) div[data-baseweb="input"]::before {
             color: #38bdf8 !important;
         }
         
@@ -363,18 +357,18 @@ if 'usuario' not in st.session_state:
     c1, c2, c3 = st.columns([1, 1.2, 1]) 
     
     with c2:
-        # A Logo (Se falhar a local, puxa a da Amazon S3 garantindo que NUNCA fica quebrado na nuvem)
-        if logo_b64:
-            st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_b64}" width="180" style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div style="text-align: center;"><img src="https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png" width="180" style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
-            
-        st.markdown('<h1 style="color: #173775; font-size: 2.2em; text-align: center; margin-top: 0; margin-bottom: 5px; font-weight: 700;">BEM-VINDO</h1>', unsafe_allow_html=True)
-        st.markdown('<h2 style="color: gray; font-size: 1em; text-align: center; font-weight: 400; margin-top: 0; margin-bottom: 25px;">Sistema de Chamados</h2>', unsafe_allow_html=True)
-        
-        # --- A GRANDE MÁGICA: O FORMULÁRIO ---
-        # Impede que o Streamlit Cloud perca os dados quando clica no botão
+        # --- A GRANDE MÁGICA: O FORMULÁRIO É O CARTÃO ---
         with st.form("login_form", clear_on_submit=False):
+            # A Logo e Textos ficam DENTRO do formulário
+            if logo_b64:
+                st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_b64}" width="180" style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div style="text-align: center;"><img src="https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png" width="180" style="margin-bottom: 20px;"></div>', unsafe_allow_html=True)
+                
+            st.markdown('<h1 style="color: #173775; font-size: 2.2em; text-align: center; margin-top: 0; margin-bottom: 5px; font-weight: 700;">BEM-VINDO</h1>', unsafe_allow_html=True)
+            st.markdown('<h2 style="color: gray; font-size: 1em; text-align: center; font-weight: 400; margin-top: 0; margin-bottom: 25px;">Sistema de Chamados</h2>', unsafe_allow_html=True)
+            
+            # Caixas Oficiais
             user_digitado = st.text_input("Utilizador", placeholder="Coloque o seu usuário", label_visibility="collapsed")
             senha_digitada = st.text_input("Senha", type="password", placeholder="Coloque a sua senha", label_visibility="collapsed")
             
