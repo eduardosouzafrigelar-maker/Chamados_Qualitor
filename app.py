@@ -305,7 +305,7 @@ def render_corporate_login():
         [data-testid="stForm"] input[type="text"] {
             background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%23a0aec0' d='M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z'/%3E%3C/svg%3E") !important;
             background-repeat: no-repeat !important;
-            background-position: 15px 50% !important; /* Mágica do Alinhamento Vertical */
+            background-position: 15px 50% !important; 
             background-size: 18px !important;
             padding-left: 50px !important; 
         }
@@ -313,7 +313,7 @@ def render_corporate_login():
         [data-testid="stForm"] input[type="password"] {
             background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%23a0aec0' d='M144 144v48H304V144c0-44.2-35.8-80-80-80s-80 35.8-80 80zM80 192V144C80 64.5 144.5 0 224 0s144 64.5 144 144v48h16c35.3 0 64 28.7 64 64V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V256c0-35.3 28.7-64 64-64H80z'/%3E%3C/svg%3E") !important;
             background-repeat: no-repeat !important;
-            background-position: 15px 50% !important; /* Mágica do Alinhamento Vertical */
+            background-position: 15px 50% !important; 
             background-size: 16px !important;
             padding-left: 50px !important; 
         }
@@ -343,9 +343,6 @@ def render_corporate_login():
             box-shadow: 0 5px 15px rgba(56,189,248,0.4) !important;
             color: #ffffff !important;
         }
-        
-        .logo-container { text-align: center; margin-bottom: 25px; }
-        .logo-container img { max-width: 220px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -380,13 +377,14 @@ if 'usuario' not in st.session_state:
     with c2:
         with st.form("login_form", clear_on_submit=False):
             
-            img_html = f'<img src="data:image/png;base64,{logo_b64}">' if logo_b64 else '<img src="https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png">'
+            # --- ALINHAMENTO ABSOLUTO DE TEXTO E IMAGEM ---
+            img_html = f'<img src="data:image/png;base64,{logo_b64}" style="width: 180px; display: block; margin: 0 auto;">' if logo_b64 else '<img src="https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png" style="width: 180px; display: block; margin: 0 auto;">'
             
             st.markdown(f'''
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-bottom: 20px;">
-                <div class="logo-container">{img_html}</div>
-                <h1 style="color: #173775; font-size: 2.5em; margin: 0 0 5px 0; font-weight: 700; text-align: center;">BEM-VINDO</h1>
-                <h2 style="color: gray; font-size: 1.1em; margin: 0; font-weight: 400; text-align: center;">Sistema de Chamados</h2>
+            <div style="text-align: center; margin-bottom: 25px;">
+                {img_html}
+                <h1 style="color: #173775; font-size: 2.4em; margin: 15px 0 5px 0; font-weight: 800; line-height: 1.2;">BEM-VINDO</h1>
+                <h2 style="color: #718096; font-size: 1.1em; margin: 0; font-weight: 400;">Sistema de Chamados</h2>
             </div>
             ''', unsafe_allow_html=True)
             
