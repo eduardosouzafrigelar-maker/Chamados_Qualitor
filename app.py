@@ -10,7 +10,7 @@ import google.generativeai as genai
 from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
 import unicodedata
-import base64 
+import base64
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
@@ -73,7 +73,7 @@ def conectar_e_abrir_abas():
         erro_real = ""
         for tentativa in range(10):
             try:
-                sh = client.open("Chamados_Qualitor") # NOME OFICIAL DE PRODUÇÃO
+                sh = client.open("Chamados_Qualitor")
                 abas = sh.worksheets()
                 
                 if len(abas) >= 2:
@@ -180,7 +180,7 @@ def salvar_mural(texto):
     with open("mural.txt", "w", encoding="utf-8") as f:
         f.write(texto)
 
-# --- RANKING GLOBAL (MEMÓRIA PERPÉTUA) ---
+# --- RANKING GLOBAL ---
 df_logs_global = carregar_logs_dia()
 ranking_global = pd.DataFrame()
 if not df_logs_global.empty:
@@ -240,9 +240,8 @@ elif st.session_state['tema_escolhido'] == "Rosa":
         </style>
     """, unsafe_allow_html=True)
 
-
 # ===================================================
-# 🎫 TELA DE LOGIN CORPORATIVA BLINDADA (STREAMLIT CLOUD)
+# 🎫 TELA DE LOGIN CORPORATIVA BLINDADA E AMPLIADA
 # ===================================================
 def render_corporate_login():
     st.markdown("""
@@ -252,23 +251,45 @@ def render_corporate_login():
             background: linear-gradient(135deg, #0f1c3a 0%, #173775 100%) !important; 
         }
         
-        /* 2. Esconde o menu lateral e o cabeçalho enquanto não houver login */
+        /* 2. Esconde o menu lateral e o cabeçalho no login */
         [data-testid="stSidebar"], [data-testid="stHeader"] { display: none !important; }
         
-        /* 3. O FORMULÁRIO AGORA É O CARTÃO BRANCO! */
-        /* Centralizado, tamanho fixo, sem depender de colunas e com sombra */
+        /* 3. Permite que a tela fique larga o suficiente para as colunas */
+        .main .block-container { 
+            max-width: 1200px !important; 
+            padding-top: 8vh !important;
+        }
+
+        /* 4. O FORMULÁRIO GIGANTE E BEM VISÍVEL */
         [data-testid="stForm"] {
             background-color: #ffffff !important;
-            padding: 40px !important;
+            padding: 50px 40px !important;
             border-radius: 15px !important;
             box-shadow: 0 15px 35px rgba(0,0,0,0.5) !important;
             border: none !important;
-            max-width: 420px !important;
             width: 100% !important;
-            margin: 8vh auto !important; /* Centraliza na tela */
+            max-width: 500px !important; /* Aumentamos de 420 para 500! */
+            margin: 0 auto !important; /* Centraliza dentro da coluna */
         }
 
-        /* 4. Caixas de Texto (Fundo branco e borda cinza) */
+        /* 5. Títulos do Login */
+        [data-testid="stForm"] h1 { 
+            color: #173775 !important; 
+            font-size: 2.2em !important; 
+            text-align: center !important; 
+            margin-bottom: 5px !important; 
+            font-weight: 700 !important;
+        }
+        [data-testid="stForm"] h2 { 
+            color: #718096 !important; 
+            font-size: 1.1em !important; 
+            text-align: center !important; 
+            margin-top: 0px !important; 
+            margin-bottom: 30px !important; 
+            font-weight: 400 !important;
+        }
+
+        /* 6. Caixas de Texto (Maiores e mais limpas) */
         [data-testid="stForm"] div[data-baseweb="input"] {
             background-color: #ffffff !important;
             border: 2px solid #e2e8f0 !important;
@@ -276,58 +297,53 @@ def render_corporate_login():
             transition: all 0.3s ease !important;
         }
         
-        /* 5. O Texto que você escreve */
         [data-testid="stForm"] input {
             color: #0f172a !important;
-            -webkit-text-fill-color: #0f172a !important; /* Força cor preta no Cloud */
-            font-size: 1.1em !important;
-            height: 50px !important;
+            -webkit-text-fill-color: #0f172a !important; 
+            font-size: 1.2em !important; /* Letra maior! */
+            height: 55px !important; /* Caixa mais alta! */
             background-color: transparent !important;
         }
         
-        /* 6. A Cor do Placeholder (Coloque o seu usuário...) */
         [data-testid="stForm"] input::placeholder {
             color: #a0aec0 !important;
             -webkit-text-fill-color: #a0aec0 !important;
             opacity: 1 !important;
         }
 
-        /* --- ÍCONES SVG EMBUTIDOS (O CADEADO E O USUÁRIO FORÇADOS) --- */
-        
-        /* Ícone de Bonequinho (Input tipo Texto) */
-        [data-testid="stForm"] input[type="text"] {
+        /* --- ÍCONES SVG EMBUTIDOS (CADEADO E USUÁRIO) --- */
+        [data-testid="stForm"] [data-testid="stTextInput"]:nth-of-type(1) input {
             background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%23a0aec0' d='M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z'/%3E%3C/svg%3E") !important;
             background-repeat: no-repeat !important;
             background-position: 15px center !important;
-            background-size: 16px !important;
-            padding-left: 45px !important; 
+            background-size: 18px !important;
+            padding-left: 50px !important; 
         }
 
-        /* Ícone de Cadeado (Input tipo Password) */
-        [data-testid="stForm"] input[type="password"] {
+        [data-testid="stForm"] [data-testid="stTextInput"]:nth-of-type(2) input {
             background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%23a0aec0' d='M144 144v48H304V144c0-44.2-35.8-80-80-80s-80 35.8-80 80zM80 192V144C80 64.5 144.5 0 224 0s144 64.5 144 144v48h16c35.3 0 64 28.7 64 64V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V256c0-35.3 28.7-64 64-64H80z'/%3E%3C/svg%3E") !important;
             background-repeat: no-repeat !important;
             background-position: 15px center !important;
-            background-size: 14px !important;
-            padding-left: 45px !important; 
+            background-size: 16px !important;
+            padding-left: 50px !important; 
         }
         
-        /* 7. Realce Azul ao Clicar na Caixa de Texto */
+        /* Realce Azul ao Clicar na Caixa */
         [data-testid="stForm"] div[data-baseweb="input"]:focus-within {
             border-color: #38bdf8 !important;
             box-shadow: 0 0 0 1px #38bdf8 !important;
         }
         
-        /* 8. Botão Entrar do Formulário */
+        /* Botão Entrar Gigante e Arredondado */
         [data-testid="stFormSubmitButton"] button {
             background-color: #173775 !important;
             color: #ffffff !important;
             border: none !important;
-            border-radius: 25px !important;
-            height: 50px !important;
+            border-radius: 30px !important;
+            height: 55px !important;
             font-weight: bold !important;
-            font-size: 1.1em !important;
-            margin-top: 15px !important;
+            font-size: 1.2em !important;
+            margin-top: 20px !important;
             width: 100% !important;
             transition: all 0.3s ease !important;
         }
@@ -337,6 +353,9 @@ def render_corporate_login():
             box-shadow: 0 5px 15px rgba(56,189,248,0.4) !important;
             color: #ffffff !important;
         }
+        
+        .logo-container { text-align: center; margin-bottom: 25px; }
+        .logo-container img { max-width: 220px; } /* Logo Maior */
     </style>
     """, unsafe_allow_html=True)
 
@@ -353,10 +372,9 @@ if 'usuario' not in st.session_state:
         if st.button("🔄 Recarregar Nomes"):
             st.cache_data.clear(); st.rerun()
 
-    # Aplica a Armadura de CSS
+    # Aplica o CSS
     render_corporate_login()
     
-    # Função para tentar ler a logo local do seu PC
     def get_image_base64(caminho_imagem):
         try:
             with open(caminho_imagem, "rb") as img_file:
@@ -366,42 +384,42 @@ if 'usuario' not in st.session_state:
             
     logo_b64 = get_image_base64("logo_frigelar.png")
     
-    # O FORMULÁRIO BLINDADO (O CSS cuida de centralizá-lo, não precisamos de colunas)
-    with st.form("login_form", clear_on_submit=False):
-        
-        # A Logo e Textos ficam DENTRO do formulário (AGRUPADOS PARA ALINHAMENTO PERFEITO)
-        img_html = f'<img src="data:image/png;base64,{logo_b64}" width="180" style="margin-bottom: 15px;">' if logo_b64 else '<img src="https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png" width="180" style="margin-bottom: 15px;">'
-        
-        st.markdown(f'''
-        <div style="text-align: center; margin-bottom: 20px;">
-            {img_html}
-            <h1 style="color: #173775; font-size: 2.2em; margin: 0 0 5px 0; font-weight: 700;">BEM-VINDO</h1>
-            <h2 style="color: gray; font-size: 1em; margin: 0; font-weight: 400;">Sistema de Chamados</h2>
-        </div>
-        ''', unsafe_allow_html=True)
-        
-        # As Caixas de Texto Oficiais
-        user_digitado = st.text_input("Utilizador", placeholder="Coloque o seu usuário", label_visibility="collapsed")
-        senha_digitada = st.text_input("Senha", type="password", placeholder="Coloque a sua senha", label_visibility="collapsed")
-        
-        # O Botão de Submissão
-        submitted = st.form_submit_button("ENTRAR", use_container_width=True)
-        
-        if submitted:
-            if user_digitado in lista_nomes and str(senha_digitada) == str(senhas.get(user_digitado, "")):
-                st.session_state['usuario'] = user_digitado
-                st.session_state['tamanho_fila_anterior'] = 0 
-                registrar_log(user_digitado, "LOGIN") 
-                
-                try:
-                    idx = df_equipe.index[df_equipe['Colaboradores'] == user_digitado].tolist()[0] + 2
-                    aba_users.update_cell(idx, 3, "Disponivel")
-                    st.cache_data.clear() 
-                except: pass
-                
-                st.rerun()
-            else: 
-                st.error("❌ Login não encontrado ou senha incorreta.")
+    # 3 Colunas (a coluna do meio será mais larga para dar o visual "VSCode")
+    c1, c2, c3 = st.columns([1, 2, 1]) 
+    
+    with c2:
+        with st.form("login_form", clear_on_submit=False):
+            
+            img_html = f'<img src="data:image/png;base64,{logo_b64}">' if logo_b64 else '<img src="https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png">'
+            
+            st.markdown(f'''
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-bottom: 20px;">
+                <div class="logo-container">{img_html}</div>
+                <h1 style="color: #173775; font-size: 2.5em; margin: 0 0 5px 0; font-weight: 700; text-align: center;">BEM-VINDO</h1>
+                <h2 style="color: gray; font-size: 1.1em; margin: 0; font-weight: 400; text-align: center;">Sistema de Chamados</h2>
+            </div>
+            ''', unsafe_allow_html=True)
+            
+            user_digitado = st.text_input("Utilizador", placeholder="Coloque o seu usuário", label_visibility="collapsed")
+            senha_digitada = st.text_input("Senha", type="password", placeholder="Coloque a sua senha", label_visibility="collapsed")
+            
+            submitted = st.form_submit_button("ENTRAR", use_container_width=True)
+            
+            if submitted:
+                if user_digitado in lista_nomes and str(senha_digitada) == str(senhas.get(user_digitado, "")):
+                    st.session_state['usuario'] = user_digitado
+                    st.session_state['tamanho_fila_anterior'] = 0 
+                    registrar_log(user_digitado, "LOGIN") 
+                    
+                    try:
+                        idx = df_equipe.index[df_equipe['Colaboradores'] == user_digitado].tolist()[0] + 2
+                        aba_users.update_cell(idx, 3, "Disponivel")
+                        st.cache_data.clear() 
+                    except: pass
+                    
+                    st.rerun()
+                else: 
+                    st.error("❌ Login não encontrado ou senha incorreta.")
 
 # ===================================================
 # SISTEMA LOGADO
