@@ -10,7 +10,7 @@ import google.generativeai as genai
 from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
 import unicodedata
-import base64
+import base64 
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
@@ -73,7 +73,7 @@ def conectar_e_abrir_abas():
         erro_real = ""
         for tentativa in range(10):
             try:
-                sh = client.open("Chamados_Qualitor")
+                sh = client.open("Chamados_Qualitor") # NOME OFICIAL DE PRODUÇÃO
                 abas = sh.worksheets()
                 
                 if len(abas) >= 2:
@@ -242,7 +242,7 @@ elif st.session_state['tema_escolhido'] == "Rosa":
 
 
 # ===================================================
-# 🎫 TELA DE LOGIN CORPORATIVA BLINDADA
+# 🎫 TELA DE LOGIN CORPORATIVA BLINDADA E ALINHADA
 # ===================================================
 def render_corporate_login():
     st.markdown("""
@@ -269,23 +269,28 @@ def render_corporate_login():
             box-shadow: 0 15px 35px rgba(0,0,0,0.5) !important;
             border: none !important;
             width: 100% !important;
-            max-width: 480px !important; /* Tamanho ideal para as colunas 1.5 */
+            max-width: 480px !important; 
             margin: 0 auto !important; 
         }
 
-        /* Caixas de Texto */
+        /* Caixas de Texto - Retira o overflow que esconde ícones */
         [data-testid="stForm"] div[data-baseweb="input"] {
             background-color: #ffffff !important;
             border: 2px solid #e2e8f0 !important;
             border-radius: 8px !important;
             transition: all 0.3s ease !important;
+            height: 55px !important;
         }
         
+        /* O ALINHAMENTO MATEMÁTICO: O texto cravado no meio */
         [data-testid="stForm"] input {
             color: #0f172a !important;
             -webkit-text-fill-color: #0f172a !important; 
             font-size: 1.1em !important;
             height: 55px !important;
+            line-height: 55px !important;
+            padding-top: 0px !important;
+            padding-bottom: 0px !important;
             background-color: transparent !important;
         }
         
@@ -293,24 +298,22 @@ def render_corporate_login():
             color: #a0aec0 !important;
             -webkit-text-fill-color: #a0aec0 !important;
             opacity: 1 !important;
+            line-height: 55px !important;
         }
 
-        /* --- MÁGICA: VERIFICA O TIPO DO INPUT PARA COLOCAR O ÍCONE CORRETO --- */
-        
-        /* Ícone de Bonequinho SÓ no input de tipo="text" */
+        /* --- ÍCONES SVG EMBUTIDOS E CENTRALIZADOS (50%) --- */
         [data-testid="stForm"] input[type="text"] {
             background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%23a0aec0' d='M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z'/%3E%3C/svg%3E") !important;
             background-repeat: no-repeat !important;
-            background-position: 15px center !important;
+            background-position: 15px 50% !important; /* Mágica do Alinhamento Vertical */
             background-size: 18px !important;
             padding-left: 50px !important; 
         }
 
-        /* Ícone de Cadeado SÓ no input de tipo="password" */
         [data-testid="stForm"] input[type="password"] {
             background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%23a0aec0' d='M144 144v48H304V144c0-44.2-35.8-80-80-80s-80 35.8-80 80zM80 192V144C80 64.5 144.5 0 224 0s144 64.5 144 144v48h16c35.3 0 64 28.7 64 64V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V256c0-35.3 28.7-64 64-64H80z'/%3E%3C/svg%3E") !important;
             background-repeat: no-repeat !important;
-            background-position: 15px center !important;
+            background-position: 15px 50% !important; /* Mágica do Alinhamento Vertical */
             background-size: 16px !important;
             padding-left: 50px !important; 
         }
@@ -321,7 +324,7 @@ def render_corporate_login():
             box-shadow: 0 0 0 1px #38bdf8 !important;
         }
         
-        /* Botão Entrar */
+        /* Botão Entrar Gigante e Arredondado */
         [data-testid="stFormSubmitButton"] button {
             background-color: #173775 !important;
             color: #ffffff !important;
@@ -342,7 +345,7 @@ def render_corporate_login():
         }
         
         .logo-container { text-align: center; margin-bottom: 25px; }
-        .logo-container img { max-width: 220px; } 
+        .logo-container img { max-width: 220px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -359,7 +362,7 @@ if 'usuario' not in st.session_state:
         if st.button("🔄 Recarregar Nomes"):
             st.cache_data.clear(); st.rerun()
 
-    # Aplica o CSS Corporativo
+    # Aplica o CSS
     render_corporate_login()
     
     def get_image_base64(caminho_imagem):
@@ -371,7 +374,7 @@ if 'usuario' not in st.session_state:
             
     logo_b64 = get_image_base64("logo_frigelar.png")
     
-    # 3 Colunas (A central um pouco mais larga para o card respirar)
+    # 3 Colunas (a coluna do meio será mais larga para dar o visual "VSCode")
     c1, c2, c3 = st.columns([1, 1.5, 1]) 
     
     with c2:
@@ -382,7 +385,7 @@ if 'usuario' not in st.session_state:
             st.markdown(f'''
             <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-bottom: 20px;">
                 <div class="logo-container">{img_html}</div>
-                <h1 style="color: #173775; font-size: 2.2em; margin: 0 0 5px 0; font-weight: 700; text-align: center;">BEM-VINDO</h1>
+                <h1 style="color: #173775; font-size: 2.5em; margin: 0 0 5px 0; font-weight: 700; text-align: center;">BEM-VINDO</h1>
                 <h2 style="color: gray; font-size: 1.1em; margin: 0; font-weight: 400; text-align: center;">Sistema de Chamados</h2>
             </div>
             ''', unsafe_allow_html=True)
