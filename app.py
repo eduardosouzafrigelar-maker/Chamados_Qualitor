@@ -85,7 +85,6 @@ def conectar_e_abrir_abas():
         erro_real = ""
         for tentativa in range(10):
             try:
-                
                 sh = client.open("Chamados_Qualitor") 
                 abas = sh.worksheets()
                 if len(abas) >= 2:
@@ -309,11 +308,7 @@ else:
         df = df_qualitor
         aba_atual = aba_chamados
 
-    hora_atual = hora_brasil().hour
-    if 6 <= hora_atual < 12: saudacao = "Bom dia"; sub_saudacao = "Pronto para os chamados?"
-    elif 12 <= hora_atual < 18: saudacao = "Boa tarde"; sub_saudacao = "Como está a esteira?"
-    else: saudacao = "Boa noite"; sub_saudacao = "Quase na hora de descansar!"
-    
+    # 📍 O GPS DE COLUNAS (A CORREÇÃO DO ERRO ENTRA AQUI!)
     if not df.empty:
         cols_planilha = df.columns.tolist()
         COL_STATUS = cols_planilha.index("Status") + 1 if "Status" in cols_planilha else 3
@@ -322,7 +317,12 @@ else:
         COL_FIM = cols_planilha.index("Data_Conclusao") + 1 if "Data_Conclusao" in cols_planilha else 7
     else:
         COL_STATUS, COL_RESP, COL_INICIO, COL_FIM = 3, 5, 6, 7
-        
+
+    hora_atual = hora_brasil().hour
+    if 6 <= hora_atual < 12: saudacao = "Bom dia"; sub_saudacao = "Pronto para os chamados?"
+    elif 12 <= hora_atual < 18: saudacao = "Boa tarde"; sub_saudacao = "Como está a esteira?"
+    else: saudacao = "Boa noite"; sub_saudacao = "Quase na hora de descansar!"
+    
     status_real = "Erro"
     linha_planilha = None
     minhas_etapas = ['Todas']
@@ -470,7 +470,7 @@ else:
         time.sleep(15); st.cache_data.clear(); st.rerun()
 
     # ===================================================
-    # 👑 VISÃO DO GESTOR (ADMIN)
+    # 👑 VISÃO DO GESTOR (ADMIN) - DASHBOARDS E FILTRO DE DATA
     # ===================================================
     elif modo_gerente:
         st.title("📊 Painel de Controle - Gestão")
@@ -546,6 +546,7 @@ else:
             if not ranking_periodo.empty: st.bar_chart(ranking_periodo.set_index('Nome'), use_container_width=True)
             else: st.info("Sem dados para o período selecionado.")
 
+        # --- NOVA VISUALIZAÇÃO: VOLUME POR ETAPA (QUALITOR) ---
         st.write("---")
         st.markdown("### 📊 Detalhamento de Etapas (Fila Qualitor)")
         if not df_qualitor.empty and 'Etapa' in df_qualitor.columns:
@@ -553,12 +554,18 @@ else:
             if not df_pendentes_qualitor.empty:
                 contagem_etapas = df_pendentes_qualitor['Etapa'].value_counts().reset_index()
                 contagem_etapas.columns = ['Etapa (Assunto)', 'Quantidade na Fila']
+                
                 c_etapa1, c_etapa2 = st.columns([2, 1])
-                with c_etapa1: st.bar_chart(df_pendentes_qualitor['Etapa'].value_counts(), use_container_width=True)
-                with c_etapa2: st.dataframe(contagem_etapas, hide_index=True, use_container_width=True)
-            else: st.success("Não há chamados pendentes na fila do Qualitor no momento.")
-        else: st.info("A base Qualitor está vazia ou sem a coluna 'Etapa'.")
+                with c_etapa1:
+                    st.bar_chart(df_pendentes_qualitor['Etapa'].value_counts(), use_container_width=True)
+                with c_etapa2:
+                    st.dataframe(contagem_etapas, hide_index=True, use_container_width=True)
+            else:
+                st.success("Não há chamados pendentes na fila do Qualitor no momento.")
+        else:
+            st.info("A base Qualitor está vazia ou sem a coluna 'Etapa'.")
 
+        # --- EXPORTAÇÃO COMPLETA COM FILTRO ---
         st.write("---")
         st.subheader("💾 Exportação de Bases e Auditoria")
         cexp1, cexp2, cexp3 = st.columns(3)
@@ -571,6 +578,7 @@ else:
             cexp3.download_button("📥 BAIXAR LOGS FILTRADOS (CSV)", df_logs_export.to_csv(index=False).encode('utf-8-sig'), file_name=nome_arquivo_logs, mime="text/csv", use_container_width=True)
         else: cexp3.info("Sem logs para este período.")
 
+        # --- GERADOR DE RELATÓRIO EXECUTIVO (PDF) ---
         st.write("---")
         with st.expander("📄 Gerar Relatório Executivo Oficial (PDF)"):
             aviso_pdf = st.text_input("Observação (Opcional):", placeholder="Ex: Operação Azix com volume alto...")
@@ -610,6 +618,7 @@ else:
                     st.success("✅ PDF Gerado!")
                     st.download_button(label="📥 BAIXAR RELATÓRIO PDF", data=bytes_pdf, file_name=nome_arquivo, mime="application/pdf", type="primary")
             
+        # --- ROBÔ IMPORTADOR ---
         st.write("---")
         st.subheader("📥 Robô Importador Universal")
         tipo_importacao = st.radio("Escolha a Base:", ["1. Qualitor (Substituição)", "2. Azix (Injeção Inteligente)"])
@@ -738,104 +747,110 @@ else:
         st.title("🛡️ Painel Azix - Tratativas")
         if status_real != "Disponivel": st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
         else:
-            meu_chamado = df[(df['Status'] == 'Em Andamento') & (df['Responsavel'] == usuario)]
-            if len(meu_chamado) > 0:
-                dados = meu_chamado.iloc[0]
-                idx_linha = int(meu_chamado.index[0]) + 2 
-                
-                sla_badge = dados.get('Status_SLA', 'SLA não calculado')
-                if 'Atrasado' in sla_badge or 'Vence Hoje' in sla_badge: st.error(f"SLA: {sla_badge}")
-                else: st.info(f"SLA: {sla_badge}")
-                
-                st.markdown("### 📋 Ficha Detalhada do Pedido")
-                with st.container():
-                    st.markdown('<div style="background-color: #f8fafc; padding: 20px; border-radius: 10px; border-left: 5px solid #38bdf8;">', unsafe_allow_html=True)
-                    for col in df.columns:
-                        if col not in ['ID', 'Status', 'Responsavel', 'Inicio', 'Data_Conclusao', 'SLA', 'Peso_SLA', 'Assentamentos', 'Data_Entrada', 'Status_SLA']:
-                            val = dados.get(col, '')
-                            if pd.notna(val) and str(val).strip() != '': st.markdown(f"**{col}:** {val}")
-                    st.markdown('</div><br>', unsafe_allow_html=True)
-
-                st.markdown("### 📝 Histórico (CRM)")
-                historico_atual = str(dados.get('Assentamentos', ''))
-                if historico_atual.strip() != '' and historico_atual != 'nan':
-                    historico_formatado = re.sub(r'(\[\d{2}/\d{2}/\d{4})', r'\n\n\1', historico_atual).strip()
-                    st.info(historico_formatado)
-                novo_assentamento = st.text_area("Nova observação:", placeholder="Ex: Cliente contactado...")
-
-                st.write("---")
-                if 'confirmar_azix' not in st.session_state: st.session_state['confirmar_azix'] = False
-                
-                if not st.session_state['confirmar_azix']:
-                    c_fim, c_pausa = st.columns(2)
-                    if c_fim.button("✅ FINALIZAR TRATATIVA", type="primary", use_container_width=True): st.session_state['confirmar_azix'] = True; st.rerun()
-                    if c_pausa.button("⏳ DEVOLVER À FILA", use_container_width=True):
-                        aba_atual.update_cell(idx_linha, COL_STATUS, "Pendente - Retorno"); aba_atual.update_cell(idx_linha, COL_RESP, ""); aba_atual.update_cell(idx_linha, COL_INICIO, "") 
-                        if novo_assentamento:
-                            col_ass = df.columns.tolist().index('Assentamentos') + 1
-                            aba_atual.update_cell(idx_linha, col_ass, f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip())
-                        
-                        if 'ignorados_azix' not in st.session_state: st.session_state['ignorados_azix'] = []
-                        st.session_state['ignorados_azix'].append(str(dados.get('Nº Pedido venda', '')))
-                        
-                        registrar_log(usuario, "Devolveu Azix à Fila"); st.cache_data.clear(); time.sleep(1.5); st.rerun()
-                else:
-                    st.warning("Confirma a conclusão?")
-                    cy, cn = st.columns(2)
-                    if cy.button("👍 SIM, FINALIZAR"):
-                        if novo_assentamento:
-                            col_ass = df.columns.tolist().index('Assentamentos') + 1
-                            aba_atual.update_cell(idx_linha, col_ass, f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip())
-                        
-                        num_pedido = dados.get('Nº Pedido venda', dados.get('Dados', ''))
-                        if is_marketplace(num_pedido):
-                            aba_atual.update_cell(idx_linha, COL_STATUS, "Aguardando Reivindicação"); aba_atual.update_cell(idx_linha, COL_RESP, "") 
-                            registrar_log(usuario, f"Azix para Mktp ({num_pedido})"); st.success("Encaminhado para Reivindicações!")
-                        else:
-                            aba_atual.update_cell(idx_linha, COL_STATUS, "Concluido"); aba_atual.update_cell(idx_linha, COL_FIM, hora_texto()) 
-                            registrar_log(usuario, f"Concluiu Azix ({num_pedido})")
-                            verificar_meta_baloes(usuario, ranking_global, META_DIARIA)
-                        
-                        st.session_state['confirmar_azix'] = False; st.cache_data.clear(); time.sleep(1.5); st.rerun()
-                    if cn.button("❌ NÃO"): st.session_state['confirmar_azix'] = False; st.rerun()
-
+            if df.empty or 'Status' not in df.columns:
+                st.info("📭 A base de dados Azix está vazia. O Gestor precisa importar os dados no Painel de Gestão.")
+                if st.button("🔄 Recarregar Fila"): st.cache_data.clear(); st.rerun()
             else:
-                fila = df[(df['Status'].isin(['Pendente', 'Pendente - Retorno'])) & (df['Responsavel'] == "")].copy()
-                
-                st.markdown("### 🔍 Busca Ativa (Puxar Pedido Específico)")
-                c_busca, c_btn = st.columns([3, 1])
-                pedido_busca = c_busca.text_input("Nº do Pedido:", placeholder="Ex: MAGALU_123", label_visibility="collapsed")
-                if c_btn.button("🔍 Buscar e Puxar", use_container_width=True):
-                    if pedido_busca.strip():
-                        alvo = fila[fila['Nº Pedido venda'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
-                        if not alvo.empty:
-                            item = alvo.iloc[0]; idx_linha = int(item.name) + 2
-                            aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())
-                            registrar_log(usuario, f"Busca Ativa: Pegou {pedido_busca}")
-                            st.success("Encontrado! Puxando para sua tela..."); st.cache_data.clear(); time.sleep(1); st.rerun()
-                        else: st.error("Pedido não encontrado na fila livre, ou já está com outro operador.")
-                    else: st.warning("Digite um número de pedido.")
-                st.write("---")
-                
-                if not fila.empty:
-                    if 16 <= hora_brasil().hour < 18: fila['Peso'] = fila['Status'].apply(lambda x: 1 if x == 'Pendente - Retorno' else 2)
-                    else: fila['Peso'] = fila['Status'].apply(lambda x: 2 if x == 'Pendente - Retorno' else 1)
-                    fila = fila.sort_values(by='Peso', kind='stable')
+                meu_chamado = df[(df['Status'] == 'Em Andamento') & (df['Responsavel'] == usuario)]
+                if len(meu_chamado) > 0:
+                    dados = meu_chamado.iloc[0]
+                    idx_linha = int(meu_chamado.index[0]) + 2 
+                    
+                    sla_badge = dados.get('Status_SLA', 'SLA não calculado')
+                    if 'Atrasado' in sla_badge or 'Vence Hoje' in sla_badge: st.error(f"SLA: {sla_badge}")
+                    else: st.info(f"SLA: {sla_badge}")
+                    
+                    st.markdown("### 📋 Ficha Detalhada do Pedido")
+                    with st.container():
+                        st.markdown('<div style="background-color: #f8fafc; padding: 20px; border-radius: 10px; border-left: 5px solid #38bdf8;">', unsafe_allow_html=True)
+                        for col in df.columns:
+                            if col not in ['ID', 'Status', 'Responsavel', 'Inicio', 'Data_Conclusao', 'SLA', 'Peso_SLA', 'Assentamentos', 'Data_Entrada', 'Status_SLA']:
+                                val = dados.get(col, '')
+                                if pd.notna(val) and str(val).strip() != '': st.markdown(f"**{col}:** {val}")
+                        st.markdown('</div><br>', unsafe_allow_html=True)
 
-                st.metric("📦 Fila Azix", len(fila))
-                if st.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
-                if len(fila) > 0:
-                    if st.button("📥 PUXAR PRÓXIMO PEDIDO", type="primary", use_container_width=True):
-                        if 'ignorados_azix' not in st.session_state: st.session_state['ignorados_azix'] = []
-                        fila_limpa = fila[~fila['Nº Pedido venda'].astype(str).isin(st.session_state['ignorados_azix'])]
-                        
-                        if not fila_limpa.empty: item = fila_limpa.iloc[0]
-                        else: st.session_state['ignorados_azix'] = []; item = fila.iloc[0]
+                    st.markdown("### 📝 Histórico (CRM)")
+                    historico_atual = str(dados.get('Assentamentos', ''))
+                    if historico_atual.strip() != '' and historico_atual != 'nan':
+                        historico_formatado = re.sub(r'(\[\d{2}/\d{2}/\d{4})', r'\n\n\1', historico_atual).strip()
+                        st.info(historico_formatado)
+                    novo_assentamento = st.text_area("Nova observação:", placeholder="Ex: Cliente contactado...")
 
-                        idx_linha = int(item.name) + 2 
-                        aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())          
-                        registrar_log(usuario, "Pegou Pedido Azix"); st.cache_data.clear(); time.sleep(1); st.rerun()
-                else: st_autorefresh(interval=60000, key="refresh_azix")
+                    st.write("---")
+                    if 'confirmar_azix' not in st.session_state: st.session_state['confirmar_azix'] = False
+                    
+                    if not st.session_state['confirmar_azix']:
+                        c_fim, c_pausa = st.columns(2)
+                        if c_fim.button("✅ FINALIZAR TRATATIVA", type="primary", use_container_width=True): st.session_state['confirmar_azix'] = True; st.rerun()
+                        if c_pausa.button("⏳ DEVOLVER À FILA", use_container_width=True):
+                            aba_atual.update_cell(idx_linha, COL_STATUS, "Pendente - Retorno"); aba_atual.update_cell(idx_linha, COL_RESP, ""); aba_atual.update_cell(idx_linha, COL_INICIO, "") 
+                            if novo_assentamento:
+                                col_ass = df.columns.tolist().index('Assentamentos') + 1
+                                aba_atual.update_cell(idx_linha, col_ass, f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip())
+                            
+                            if 'ignorados_azix' not in st.session_state: st.session_state['ignorados_azix'] = []
+                            st.session_state['ignorados_azix'].append(str(dados.get('Nº Pedido venda', '')))
+                            
+                            registrar_log(usuario, "Devolveu Azix à Fila"); st.cache_data.clear(); time.sleep(1.5); st.rerun()
+                    else:
+                        st.warning("Confirma a conclusão?")
+                        cy, cn = st.columns(2)
+                        if cy.button("👍 SIM, FINALIZAR"):
+                            if novo_assentamento:
+                                col_ass = df.columns.tolist().index('Assentamentos') + 1
+                                aba_atual.update_cell(idx_linha, col_ass, f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip())
+                            
+                            num_pedido = dados.get('Nº Pedido venda', dados.get('Dados', ''))
+                            if is_marketplace(num_pedido):
+                                aba_atual.update_cell(idx_linha, COL_STATUS, "Aguardando Reivindicação"); aba_atual.update_cell(idx_linha, COL_RESP, "") 
+                                registrar_log(usuario, f"Azix para Mktp ({num_pedido})"); st.success("Encaminhado para Reivindicações!")
+                            else:
+                                aba_atual.update_cell(idx_linha, COL_STATUS, "Concluido"); aba_atual.update_cell(idx_linha, COL_FIM, hora_texto()) 
+                                registrar_log(usuario, f"Concluiu Azix ({num_pedido})")
+                                verificar_meta_baloes(usuario, ranking_global, META_DIARIA)
+                            
+                            st.session_state['confirmar_azix'] = False; st.cache_data.clear(); time.sleep(1.5); st.rerun()
+                        if cn.button("❌ NÃO"): st.session_state['confirmar_azix'] = False; st.rerun()
+
+                else:
+                    fila = df[(df['Status'].isin(['Pendente', 'Pendente - Retorno'])) & (df['Responsavel'] == "")].copy()
+                    
+                    st.markdown("### 🔍 Busca Ativa (Puxar Pedido Específico)")
+                    c_busca, c_btn = st.columns([3, 1])
+                    pedido_busca = c_busca.text_input("Nº do Pedido:", placeholder="Ex: MAGALU_123", label_visibility="collapsed")
+                    if c_btn.button("🔍 Buscar e Puxar", use_container_width=True):
+                        if pedido_busca.strip():
+                            if 'Nº Pedido venda' in fila.columns:
+                                alvo = fila[fila['Nº Pedido venda'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
+                                if not alvo.empty:
+                                    item = alvo.iloc[0]; idx_linha = int(item.name) + 2
+                                    aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())
+                                    registrar_log(usuario, f"Busca Ativa: Pegou {pedido_busca}")
+                                    st.success("Encontrado! Puxando para sua tela..."); st.cache_data.clear(); time.sleep(1); st.rerun()
+                                else: st.error("Pedido não encontrado na fila livre, ou já está com outro operador.")
+                            else: st.error("Coluna 'Nº Pedido venda' não encontrada na base.")
+                        else: st.warning("Digite um número de pedido.")
+                    st.write("---")
+                    
+                    if not fila.empty:
+                        if 16 <= hora_brasil().hour < 18: fila['Peso'] = fila['Status'].apply(lambda x: 1 if x == 'Pendente - Retorno' else 2)
+                        else: fila['Peso'] = fila['Status'].apply(lambda x: 2 if x == 'Pendente - Retorno' else 1)
+                        fila = fila.sort_values(by='Peso', kind='stable')
+
+                    st.metric("📦 Fila Azix", len(fila))
+                    if st.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
+                    if len(fila) > 0:
+                        if st.button("📥 PUXAR PRÓXIMO PEDIDO", type="primary", use_container_width=True):
+                            if 'ignorados_azix' not in st.session_state: st.session_state['ignorados_azix'] = []
+                            fila_limpa = fila[~fila['Nº Pedido venda'].astype(str).isin(st.session_state['ignorados_azix'])]
+                            
+                            if not fila_limpa.empty: item = fila_limpa.iloc[0]
+                            else: st.session_state['ignorados_azix'] = []; item = fila.iloc[0]
+
+                            idx_linha = int(item.name) + 2 
+                            aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())          
+                            registrar_log(usuario, "Pegou Pedido Azix"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                    else: st_autorefresh(interval=60000, key="refresh_azix")
 
     # =========================================================================
     # 🛒 SQUAD 2: VISÃO DOS OPERADORES DE REIVINDICAÇÕES MARKETPLACE
@@ -844,80 +859,86 @@ else:
         st.title("🛒 Painel de Reivindicações (Mktp)")
         if status_real != "Disponivel": st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
         else:
-            meu_chamado = df[(df['Status'] == 'Em Tratativa Mktp') & (df['Responsavel'] == usuario)]
-            if len(meu_chamado) > 0:
-                dados = meu_chamado.iloc[0]
-                idx_linha = int(meu_chamado.index[0]) + 2 
-                num_pedido = dados.get('Nº Pedido venda', 'N/A')
-                
-                st.success("🟢 TRATANDO REIVINDICAÇÃO...")
-                st.markdown(f"### 📦 Pedido: **{num_pedido}**")
-                
-                with st.container():
-                    st.markdown('<div style="background-color: #fffbeb; padding: 20px; border-radius: 10px; border-left: 5px solid #f59e0b;">', unsafe_allow_html=True)
-                    for col in df.columns:
-                        if col not in ['ID', 'Status', 'Responsavel', 'Inicio', 'Data_Conclusao', 'SLA', 'Peso_SLA', 'Assentamentos', 'Data_Entrada', 'Status_SLA']:
-                            val = dados.get(col, '')
-                            if pd.notna(val) and str(val).strip() != '': st.markdown(f"**{col}:** {val}")
-                    st.markdown('</div><br>', unsafe_allow_html=True)
-
-                st.markdown("### 📝 Histórico (CRM)")
-                historico_atual = str(dados.get('Assentamentos', ''))
-                if historico_atual.strip() != '' and historico_atual != 'nan':
-                    historico_formatado = re.sub(r'(\[\d{2}/\d{2}/\d{4})', r'\n\n\1', historico_atual).strip()
-                    st.info(historico_formatado)
-                novo_assentamento = st.text_area("Observação final:")
-
-                st.write("---")
-                if 'confirmar_mktp' not in st.session_state: st.session_state['confirmar_mktp'] = False
-                
-                if not st.session_state['confirmar_mktp']:
-                    if st.button("✅ ENCERRAR REIVINDICAÇÃO", type="primary", use_container_width=True): st.session_state['confirmar_mktp'] = True; st.rerun()
-                else:
-                    st.warning("Confirma o encerramento?")
-                    cy, cn = st.columns(2)
-                    if cy.button("👍 SIM"):
-                        if novo_assentamento:
-                            col_ass = df.columns.tolist().index('Assentamentos') + 1
-                            aba_atual.update_cell(idx_linha, col_ass, f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip())
-                        aba_atual.update_cell(idx_linha, COL_STATUS, "Concluido"); aba_atual.update_cell(idx_linha, COL_FIM, hora_texto()) 
-                        registrar_log(usuario, f"Reivindicação Encerrada")
-                        verificar_meta_baloes(usuario, ranking_global, META_DIARIA)
-                        st.session_state['confirmar_mktp'] = False
-                        st.cache_data.clear(); time.sleep(1); st.rerun()
-                    if cn.button("❌ NÃO"): st.session_state['confirmar_mktp'] = False; st.rerun()
+            if df.empty or 'Status' not in df.columns:
+                st.info("📭 A base de dados Azix está vazia. O Gestor precisa importar os dados no Painel de Gestão.")
+                if st.button("🔄 Recarregar Fila"): st.cache_data.clear(); st.rerun()
             else:
-                fila = df[(df['Status'] == 'Aguardando Reivindicação')].copy()
-                if not fila.empty and "Todas" not in minhas_etapas and "todas" not in [e.lower() for e in minhas_etapas]:
-                    col_busca = 'Nº Pedido venda' if 'Nº Pedido venda' in fila.columns else 'Dados'
-                    filtro = pd.Series(False, index=fila.index)
-                    for palavra in minhas_etapas:
-                        if palavra.strip(): filtro = filtro | fila[col_busca].astype(str).str.contains(palavra.strip(), case=False, na=False)
-                    fila = fila[filtro]
-                
-                st.markdown("### 🔍 Busca Ativa (Puxar Pedido Específico)")
-                c_busca, c_btn = st.columns([3, 1])
-                pedido_busca = c_busca.text_input("Nº do Pedido:", placeholder="Ex: MAGALU_123", label_visibility="collapsed")
-                if c_btn.button("🔍 Buscar e Puxar", use_container_width=True):
-                    if pedido_busca.strip():
-                        alvo = fila[fila['Nº Pedido venda'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
-                        if not alvo.empty:
-                            item = alvo.iloc[0]; idx_linha = int(item.name) + 2
-                            aba_atual.update_cell(idx_linha, COL_STATUS, "Em Tratativa Mktp"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())
-                            registrar_log(usuario, f"Busca Ativa Mktp: Pegou {pedido_busca}")
-                            st.success("Encontrado! Puxando para sua tela..."); st.cache_data.clear(); time.sleep(1); st.rerun()
-                        else: st.error("Pedido não encontrado na sua fila de reivindicações.")
-                    else: st.warning("Digite um número de pedido.")
-                st.write("---")
+                meu_chamado = df[(df['Status'] == 'Em Tratativa Mktp') & (df['Responsavel'] == usuario)]
+                if len(meu_chamado) > 0:
+                    dados = meu_chamado.iloc[0]
+                    idx_linha = int(meu_chamado.index[0]) + 2 
+                    num_pedido = dados.get('Nº Pedido venda', 'N/A')
+                    
+                    st.success("🟢 TRATANDO REIVINDICAÇÃO...")
+                    st.markdown(f"### 📦 Pedido: **{num_pedido}**")
+                    
+                    with st.container():
+                        st.markdown('<div style="background-color: #fffbeb; padding: 20px; border-radius: 10px; border-left: 5px solid #f59e0b;">', unsafe_allow_html=True)
+                        for col in df.columns:
+                            if col not in ['ID', 'Status', 'Responsavel', 'Inicio', 'Data_Conclusao', 'SLA', 'Peso_SLA', 'Assentamentos', 'Data_Entrada', 'Status_SLA']:
+                                val = dados.get(col, '')
+                                if pd.notna(val) and str(val).strip() != '': st.markdown(f"**{col}:** {val}")
+                        st.markdown('</div><br>', unsafe_allow_html=True)
 
-                st.metric("🚨 Reivindicações", len(fila))
-                if st.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
-                if len(fila) > 0:
-                    if st.button("📥 REIVINDICAR PRÓXIMO", type="primary", use_container_width=True):
-                        idx_linha = int(fila.iloc[0].name) + 2 
-                        aba_atual.update_cell(idx_linha, COL_STATUS, "Em Tratativa Mktp"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())          
-                        registrar_log(usuario, "Pegou Mktp"); st.cache_data.clear(); time.sleep(1); st.rerun()
-                else: st_autorefresh(interval=60000, key="refresh_mktp")
+                    st.markdown("### 📝 Histórico (CRM)")
+                    historico_atual = str(dados.get('Assentamentos', ''))
+                    if historico_atual.strip() != '' and historico_atual != 'nan':
+                        historico_formatado = re.sub(r'(\[\d{2}/\d{2}/\d{4})', r'\n\n\1', historico_atual).strip()
+                        st.info(historico_formatado)
+                    novo_assentamento = st.text_area("Observação final:")
+
+                    st.write("---")
+                    if 'confirmar_mktp' not in st.session_state: st.session_state['confirmar_mktp'] = False
+                    
+                    if not st.session_state['confirmar_mktp']:
+                        if st.button("✅ ENCERRAR REIVINDICAÇÃO", type="primary", use_container_width=True): st.session_state['confirmar_mktp'] = True; st.rerun()
+                    else:
+                        st.warning("Confirma o encerramento?")
+                        cy, cn = st.columns(2)
+                        if cy.button("👍 SIM"):
+                            if novo_assentamento:
+                                col_ass = df.columns.tolist().index('Assentamentos') + 1
+                                aba_atual.update_cell(idx_linha, col_ass, f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip())
+                            aba_atual.update_cell(idx_linha, COL_STATUS, "Concluido"); aba_atual.update_cell(idx_linha, COL_FIM, hora_texto()) 
+                            registrar_log(usuario, f"Reivindicação Encerrada")
+                            verificar_meta_baloes(usuario, ranking_global, META_DIARIA)
+                            st.session_state['confirmar_mktp'] = False
+                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                        if cn.button("❌ NÃO"): st.session_state['confirmar_mktp'] = False; st.rerun()
+                else:
+                    fila = df[(df['Status'] == 'Aguardando Reivindicação')].copy()
+                    if not fila.empty and "Todas" not in minhas_etapas and "todas" not in [e.lower() for e in minhas_etapas]:
+                        col_busca = 'Nº Pedido venda' if 'Nº Pedido venda' in fila.columns else 'Dados'
+                        filtro = pd.Series(False, index=fila.index)
+                        for palavra in minhas_etapas:
+                            if palavra.strip(): filtro = filtro | fila[col_busca].astype(str).str.contains(palavra.strip(), case=False, na=False)
+                        fila = fila[filtro]
+                    
+                    st.markdown("### 🔍 Busca Ativa (Puxar Pedido Específico)")
+                    c_busca, c_btn = st.columns([3, 1])
+                    pedido_busca = c_busca.text_input("Nº do Pedido:", placeholder="Ex: MAGALU_123", label_visibility="collapsed")
+                    if c_btn.button("🔍 Buscar e Puxar", use_container_width=True):
+                        if pedido_busca.strip():
+                            if 'Nº Pedido venda' in fila.columns:
+                                alvo = fila[fila['Nº Pedido venda'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
+                                if not alvo.empty:
+                                    item = alvo.iloc[0]; idx_linha = int(item.name) + 2
+                                    aba_atual.update_cell(idx_linha, COL_STATUS, "Em Tratativa Mktp"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())
+                                    registrar_log(usuario, f"Busca Ativa Mktp: Pegou {pedido_busca}")
+                                    st.success("Encontrado! Puxando para sua tela..."); st.cache_data.clear(); time.sleep(1); st.rerun()
+                                else: st.error("Pedido não encontrado na sua fila de reivindicações.")
+                            else: st.error("Coluna 'Nº Pedido venda' não encontrada na base.")
+                        else: st.warning("Digite um número de pedido.")
+                    st.write("---")
+
+                    st.metric("🚨 Reivindicações", len(fila))
+                    if st.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
+                    if len(fila) > 0:
+                        if st.button("📥 REIVINDICAR PRÓXIMO", type="primary", use_container_width=True):
+                            idx_linha = int(fila.iloc[0].name) + 2 
+                            aba_atual.update_cell(idx_linha, COL_STATUS, "Em Tratativa Mktp"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())          
+                            registrar_log(usuario, "Pegou Mktp"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                    else: st_autorefresh(interval=60000, key="refresh_mktp")
 
     # =========================================================================
     # 👷 SQUAD 3: VISÃO PADRÃO (OPERADOR QUALITOR)
@@ -926,89 +947,87 @@ else:
         if status_real != "Disponivel": st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
         else:
             st.success(f"🟢 ONLINE - {sub_saudacao}")
-            meu_chamado = df[(df['Status'] == 'Em Andamento') & (df['Responsavel'] == usuario)]
             
-            if len(meu_chamado) > 0:
-                dados = meu_chamado.iloc[0]
-                num = dados.get('Dados', 'N/A') 
-                sla_atual = str(dados.get('SLA', 'Sem Info'))
-                
-                if 'fora' in sla_atual.lower(): st.error(f"🔥 ALERTA DE SLA: {sla_atual}")
-                else: st.info(f"✅ Status do SLA: {sla_atual}")
-
-                st.markdown(f"### 📞 Chamado: **{num}** | Etapa: **{dados.get('Etapa', 'N/A')}**")
-                if str(num) != 'N/A': st.link_button("🔗 Abrir no Qualitor", f"https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado={num}")
-                
-                with st.expander("✨ Resumir Histórico do Chamado (Inteligência Artificial)"):
-                    historico = st.text_area("Cole aqui os assentamentos do cliente para análise rápida:", height=100)
-                    if st.button("Mastigar Histórico"):
-                        if ia_ativa and historico:
-                            with st.spinner("Processando os dados..."):
-                                try:
-                                    resp = modelo_oraculo.generate_content(f"Analise este histórico de atendimento e devolva os 3 pontos mais importantes (causa, situação atual e o que o cliente quer). Seja extremamente resumido:\n\n{historico}")
-                                    st.info(resp.text)
-                                except Exception as e: st.error(f"Erro na IA: {e}")
-                        elif not ia_ativa: st.error("IA desligada. Verifique a chave de API.")
-                        else: st.warning("Cole o texto primeiro.")
-
-                st.write("---")
-                if 'confirmar' not in st.session_state: st.session_state['confirmar'] = False
-                
-                if not st.session_state['confirmar']:
-                    if st.button("✅ FINALIZAR", type="primary"): st.session_state['confirmar'] = True; st.rerun()
-                else:
-                    st.warning("Confirma a conclusão?")
-                    cy, cn = st.columns(2)
-                    if cy.button("👍 SIM"):
-                        aba_chamados.update_cell(int(meu_chamado.index[0])+2, COL_STATUS, "Concluido")
-                        aba_chamados.update_cell(int(meu_chamado.index[0])+2, COL_FIM, hora_texto()) 
-                        registrar_log(usuario, f"Finalizou {num}")
-                        verificar_meta_baloes(usuario, ranking_global, META_DIARIA)
-                        st.session_state['confirmar'] = False
-                        st.cache_data.clear(); time.sleep(1); st.rerun()
-                    if cn.button("❌ NÃO"): st.session_state['confirmar'] = False; st.rerun()
+            if df.empty or 'Status' not in df.columns:
+                st.info("📭 A base de dados Qualitor está vazia. O Gestor precisa importar os dados.")
+                if st.button("🔄 Recarregar Fila"): st.cache_data.clear(); st.rerun()
             else:
-                fila = df[(df['Status'] == 'Pendente') & (df['Responsavel'] == "")].copy()
-                if "Todas" not in minhas_etapas and "todas" not in [e.lower() for e in minhas_etapas]:
-                    fila = fila[fila['Etapa'].astype(str).isin(minhas_etapas)]
+                meu_chamado = df[(df['Status'] == 'Em Andamento') & (df['Responsavel'] == usuario)]
                 
-                st.markdown("### 🔍 Busca Ativa (Puxar Chamado Específico)")
-                c_busca, c_btn = st.columns([3, 1])
-                pedido_busca = c_busca.text_input("Nº do Chamado:", placeholder="Ex: 384405", label_visibility="collapsed")
-                if c_btn.button("🔍 Buscar e Puxar", use_container_width=True):
-                    if pedido_busca.strip():
-                        alvo = fila[fila['Dados'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
-                        if not alvo.empty:
-                            item = alvo.iloc[0]; idx_linha = int(item.name) + 2
-                            aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento")
-                            aba_atual.update_cell(idx_linha, COL_RESP, usuario)
-                            aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())
-                            registrar_log(usuario, f"Busca Ativa Qualitor: Pegou {pedido_busca}")
-                            st.success("Encontrado! Puxando para sua tela...")
-                            st.cache_data.clear(); time.sleep(1); st.rerun()
-                        else: st.error("Chamado não encontrado na fila permitida ou já em atendimento.")
-                    else: st.warning("Digite um número de chamado.")
-                st.write("---")
+                if len(meu_chamado) > 0:
+                    dados = meu_chamado.iloc[0]
+                    num = dados.get('Dados', 'N/A') 
+                    sla_atual = str(dados.get('SLA', 'Sem Info'))
+                    
+                    if 'fora' in sla_atual.lower(): st.error(f"🔥 ALERTA DE SLA: {sla_atual}")
+                    else: st.info(f"✅ Status do SLA: {sla_atual}")
 
-                qtd = len(fila)
-                c_f, c_r = st.columns([3,1])
-                c_f.metric("Sua Fila Qualitor", qtd)
-                if c_r.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
-                
-                if qtd > 0:
-                    # ✅ O ÚNICO E VERDADEIRO BOTÃO!
-                    if st.button("📥 PEGAR PRÓXIMO", type="primary", use_container_width=True):
-                        if 'SLA' in fila.columns:
-                            fila['Peso_SLA'] = fila['SLA'].astype(str).apply(lambda x: 1 if 'fora' in x.lower() else 2)
-                            fila = fila.sort_values(by='Peso_SLA', kind='stable')
-                        idx_linha = int(fila.iloc[0].name) + 2 
-                        aba_chamados.update_cell(idx_linha, COL_STATUS, "Em Andamento")
-                        aba_chamados.update_cell(idx_linha, COL_RESP, usuario)
-                        aba_chamados.update_cell(idx_linha, COL_INICIO, hora_texto())          
-                        registrar_log(usuario, "Pegou chamado Qualitor")
-                        st.cache_data.clear(); time.sleep(1); st.rerun()
-                else: 
-                    st_autorefresh(interval=60000, key="refresh_fila_vazia")
+                    st.markdown(f"### 📞 Chamado: **{num}** | Etapa: **{dados.get('Etapa', 'N/A')}**")
+                    if str(num) != 'N/A': st.link_button("🔗 Abrir no Qualitor", f"https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado={num}")
+                    
+                    with st.expander("✨ Resumir Histórico do Chamado (Inteligência Artificial)"):
+                        historico = st.text_area("Cole aqui os assentamentos do cliente para análise rápida:", height=100)
+                        if st.button("Mastigar Histórico"):
+                            if ia_ativa and historico:
+                                with st.spinner("Processando os dados..."):
+                                    try:
+                                        resp = modelo_oraculo.generate_content(f"Analise este histórico de atendimento e devolva os 3 pontos mais importantes (causa, situação atual e o que o cliente quer). Seja extremamente resumido:\n\n{historico}")
+                                        st.info(resp.text)
+                                    except Exception as e: st.error(f"Erro na IA: {e}")
+                            elif not ia_ativa: st.error("IA desligada. Verifique a chave de API.")
+                            else: st.warning("Cole o texto primeiro.")
+
+                    st.write("---")
+                    if 'confirmar' not in st.session_state: st.session_state['confirmar'] = False
+                    
+                    if not st.session_state['confirmar']:
+                        if st.button("✅ FINALIZAR", type="primary"): st.session_state['confirmar'] = True; st.rerun()
+                    else:
+                        st.warning("Confirma a conclusão?")
+                        cy, cn = st.columns(2)
+                        if cy.button("👍 SIM"):
+                            aba_chamados.update_cell(int(meu_chamado.index[0])+2, COL_STATUS, "Concluido")
+                            aba_chamados.update_cell(int(meu_chamado.index[0])+2, COL_FIM, hora_texto()) 
+                            registrar_log(usuario, f"Finalizou {num}")
+                            verificar_meta_baloes(usuario, ranking_global, META_DIARIA)
+                            st.session_state['confirmar'] = False
+                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                        if cn.button("❌ NÃO"): st.session_state['confirmar'] = False; st.rerun()
+                else:
+                    fila = df[(df['Status'] == 'Pendente') & (df['Responsavel'] == "")].copy()
+                    if "Todas" not in minhas_etapas and "todas" not in [e.lower() for e in minhas_etapas]:
+                        fila = fila[fila['Etapa'].astype(str).isin(minhas_etapas)]
+                    
+                    st.markdown("### 🔍 Busca Ativa (Puxar Chamado Específico)")
+                    c_busca, c_btn = st.columns([3, 1])
+                    pedido_busca = c_busca.text_input("Nº do Chamado:", placeholder="Ex: 384405", label_visibility="collapsed")
+                    if c_btn.button("🔍 Buscar e Puxar", use_container_width=True):
+                        if pedido_busca.strip():
+                            alvo = fila[fila['Dados'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
+                            if not alvo.empty:
+                                item = alvo.iloc[0]; idx_linha = int(item.name) + 2
+                                aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())
+                                registrar_log(usuario, f"Busca Ativa Qualitor: Pegou {pedido_busca}")
+                                st.success("Encontrado! Puxando para sua tela..."); st.cache_data.clear(); time.sleep(1); st.rerun()
+                            else: st.error("Chamado não encontrado na fila permitida ou já em atendimento.")
+                        else: st.warning("Digite um número de chamado.")
+                    st.write("---")
+
+                    qtd = len(fila)
+                    c_f, c_r = st.columns([3,1])
+                    c_f.metric("Sua Fila Qualitor", qtd)
+                    if c_r.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
+                    
+                    if qtd > 0:
+                        if st.button("📥 PEGAR PRÓXIMO", type="primary", use_container_width=True):
+                            if 'SLA' in fila.columns:
+                                fila['Peso_SLA'] = fila['SLA'].astype(str).apply(lambda x: 1 if 'fora' in x.lower() else 2)
+                                fila = fila.sort_values(by='Peso_SLA', kind='stable')
+                            idx_linha = int(fila.iloc[0].name) + 2 
+                            aba_chamados.update_cell(idx_linha, COL_STATUS, "Em Andamento"); aba_chamados.update_cell(idx_linha, COL_RESP, usuario); aba_chamados.update_cell(idx_linha, COL_INICIO, hora_texto())          
+                            registrar_log(usuario, "Pegou chamado Qualitor"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                    else: 
+                        st_autorefresh(interval=60000, key="refresh_fila_vazia")
 
     # ===================================================
     # 🧙‍♂️ GAVETA DO ORÁCULO E TRANSPORTADORAS (PARA TODOS)
