@@ -500,6 +500,7 @@ else:
         
         azix_concluidos_periodo = 0
         azix_avancados_periodo = 0
+        azix_devolvidos_periodo = 0
         importados_azix = 0
         
         if not df_logs.empty:
@@ -511,9 +512,10 @@ else:
                 ranking_periodo = feitos_periodo['Usuario'].value_counts().reset_index()
                 ranking_periodo.columns = ['Nome', 'Qtd']
                 
-            # Ler a história do Azix na Máquina do Tempo
+            # Ler a história do Azix na Máquina do Tempo (Agora contando devoluções!)
             azix_concluidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Concluiu Azix", case=False)])
             azix_avancados_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Azix para Mktp", case=False)])
+            azix_devolvidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Devolveu Azix", case=False)])
             
             # Soma os importados no período
             logs_importacao = df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Adicionou", case=False)]
@@ -548,6 +550,7 @@ else:
             <div style='border-top: 1px solid #fde68a; padding-top: 10px; margin-top: 10px;'>
                 <p style='color: #92400e; margin:0; font-size: 0.85em;'><b>No Período Filtrado acima:</b></p>
                 <p style='color: #b45309; margin:0; font-size: 0.85em;'>📥 Importados p/ fila: <b>{importados_azix}</b></p>
+                <p style='color: #ea580c; margin:0; font-size: 0.85em;'>↩️ Devolvidos p/ fila: <b>{azix_devolvidos_periodo}</b></p>
                 <p style='color: #16a34a; margin:0; font-size: 0.85em;'>✅ Encerrados: <b>{azix_concluidos_periodo}</b></p>
                 <p style='color: #0284c7; margin:0; font-size: 0.85em;'>⏭️ Avançaram Etapa: <b>{azix_avancados_periodo}</b></p>
             </div>
@@ -817,10 +820,14 @@ else:
                                 col_ass = df.columns.tolist().index('Assentamentos') + 1
                                 aba_atual.update_cell(idx_linha, col_ass, f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip())
                             
-                            if 'ignorados_azix' not in st.session_state: st.session_state['ignorados_azix'] = []
-                            st.session_state['ignorados_azix'].append(str(dados.get('Nº Pedido venda', '')))
+                            # Puxa o número do pedido
+                            num_pedido = str(dados.get('Nº Pedido venda', dados.get('Dados', '')))
                             
-                            registrar_log(usuario, "Devolveu Azix à Fila"); st.cache_data.clear(); time.sleep(1.5); st.rerun()
+                            if 'ignorados_azix' not in st.session_state: st.session_state['ignorados_azix'] = []
+                            st.session_state['ignorados_azix'].append(num_pedido)
+                            
+                            # Agora o Log grava com o número do pedido!
+                            registrar_log(usuario, f"Devolveu Azix à Fila ({num_pedido})"); st.cache_data.clear(); time.sleep(1.5); st.rerun()
                     else:
                         st.warning("Confirma a conclusão?")
                         cy, cn = st.columns(2)
