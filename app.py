@@ -85,7 +85,7 @@ def conectar_e_abrir_abas():
         erro_real = ""
         for tentativa in range(10):
             try:
-                sh = client.open("Sistema_Chamados_TESTE") 
+                sh = client.open("Chamados_Qualitor") 
                 abas = sh.worksheets()
                 if len(abas) >= 2:
                     aba_chamados = abas[0] if len(abas) > 0 else None
