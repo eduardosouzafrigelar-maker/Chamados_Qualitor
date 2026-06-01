@@ -500,7 +500,7 @@ else:
         
         azix_concluidos_periodo = 0
         azix_avancados_periodo = 0
-        azix_devolvidos_periodo = 0
+        azix_s_periodo = 0
         importados_azix = 0
         
         if not df_logs.empty:
@@ -515,7 +515,7 @@ else:
             # Ler a história do Azix na Máquina do Tempo (Agora contando devoluções!)
             azix_concluidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Concluiu Azix", case=False)])
             azix_avancados_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Azix para Mktp", case=False)])
-            azix_devolvidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Devolveu Azix", case=False)])
+            azix_s_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Devolveu Azix", case=False)])
             
             # Soma os importados no período
             logs_importacao = df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Adicionou", case=False)]
@@ -550,7 +550,6 @@ else:
             <div style='border-top: 1px solid #fde68a; padding-top: 10px; margin-top: 10px;'>
                 <p style='color: #92400e; margin:0; font-size: 0.85em;'><b>No Período Filtrado acima:</b></p>
                 <p style='color: #b45309; margin:0; font-size: 0.85em;'>📥 Importados p/ fila: <b>{importados_azix}</b></p>
-                <p style='color: #ea580c; margin:0; font-size: 0.85em;'>↩️ Devolvidos p/ fila: <b>{azix_devolvidos_periodo}</b></p>
                 <p style='color: #16a34a; margin:0; font-size: 0.85em;'>✅ Encerrados: <b>{azix_concluidos_periodo}</b></p>
                 <p style='color: #0284c7; margin:0; font-size: 0.85em;'>⏭️ Avançaram Etapa: <b>{azix_avancados_periodo}</b></p>
             </div>
