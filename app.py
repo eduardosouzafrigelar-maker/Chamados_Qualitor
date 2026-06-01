@@ -500,7 +500,7 @@ else:
         
         azix_concluidos_periodo = 0
         azix_avancados_periodo = 0
-        azix_s_periodo = 0
+        azix_devolvidos_periodo = 0
         importados_azix = 0
         
         if not df_logs.empty:
@@ -515,7 +515,7 @@ else:
             # Ler a história do Azix na Máquina do Tempo (Agora contando devoluções!)
             azix_concluidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Concluiu Azix", case=False)])
             azix_avancados_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Azix para Mktp", case=False)])
-            azix_s_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Devolveu Azix", case=False)])
+            azix_devolvidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Devolveu Azix", case=False)])
             
             # Soma os importados no período
             logs_importacao = df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Adicionou", case=False)]
@@ -883,8 +883,13 @@ else:
                             else: st.session_state['ignorados_azix'] = []; item = fila.iloc[0]
 
                             idx_linha = int(item.name) + 2 
-                            aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())          
-                            registrar_log(usuario, "Pegou Pedido Azix"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                            num_pedido = str(item.get('Nº Pedido venda', '')) # Puxa o número do pedido
+                            
+                            aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento")
+                            aba_atual.update_cell(idx_linha, COL_RESP, usuario)
+                            aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())          
+                            registrar_log(usuario, f"Pegou Pedido Azix ({num_pedido})") # Grava com o número!
+                            st.cache_data.clear(); time.sleep(1); st.rerun()
                     else: st_autorefresh(interval=60000, key="refresh_azix")
 
     # =========================================================================
@@ -970,9 +975,15 @@ else:
                     if st.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
                     if len(fila) > 0:
                         if st.button("📥 REIVINDICAR PRÓXIMO", type="primary", use_container_width=True):
-                            idx_linha = int(fila.iloc[0].name) + 2 
-                            aba_atual.update_cell(idx_linha, COL_STATUS, "Em Tratativa Mktp"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())          
-                            registrar_log(usuario, "Pegou Mktp"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                            item = fila.iloc[0]
+                            idx_linha = int(item.name) + 2 
+                            num_pedido = str(item.get('Nº Pedido venda', '')) # Puxa o número do pedido
+                            
+                            aba_atual.update_cell(idx_linha, COL_STATUS, "Em Tratativa Mktp")
+                            aba_atual.update_cell(idx_linha, COL_RESP, usuario)
+                            aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())          
+                            registrar_log(usuario, f"Pegou Mktp ({num_pedido})") # Grava com o número!
+                            st.cache_data.clear(); time.sleep(1); st.rerun()
                     else: st_autorefresh(interval=60000, key="refresh_mktp")
 
     # =========================================================================
@@ -1054,15 +1065,20 @@ else:
                     if c_r.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
                     
                     if qtd > 0:
+                        # ✅ O ÚNICO E VERDADEIRO BOTÃO!
                         if st.button("📥 PEGAR PRÓXIMO", type="primary", use_container_width=True):
                             if 'SLA' in fila.columns:
                                 fila['Peso_SLA'] = fila['SLA'].astype(str).apply(lambda x: 1 if 'fora' in x.lower() else 2)
                                 fila = fila.sort_values(by='Peso_SLA', kind='stable')
-                            idx_linha = int(fila.iloc[0].name) + 2 
+                                
+                            item = fila.iloc[0]
+                            idx_linha = int(item.name) + 2 
+                            num_chamado = str(item.get('Dados', '')).replace('.0', '') # Puxa o número do chamado
+                            
                             aba_chamados.update_cell(idx_linha, COL_STATUS, "Em Andamento")
                             aba_chamados.update_cell(idx_linha, COL_RESP, usuario)
                             aba_chamados.update_cell(idx_linha, COL_INICIO, hora_texto())          
-                            registrar_log(usuario, "Pegou chamado Qualitor")
+                            registrar_log(usuario, f"Pegou chamado Qualitor ({num_chamado})") # Grava com o número!
                             st.cache_data.clear(); time.sleep(1); st.rerun()
                     else: 
                         st_autorefresh(interval=60000, key="refresh_fila_vazia")
