@@ -85,7 +85,7 @@ def conectar_e_abrir_abas():
         erro_real = ""
         for tentativa in range(10):
             try:
-                sh = client.open("Chamados_Qualitor") 
+                sh = client.open("Sistema_Chamados_TESTE") 
                 abas = sh.worksheets()
                 if len(abas) >= 2:
                     aba_chamados = abas[0] if len(abas) > 0 else None
@@ -427,10 +427,6 @@ else:
         fora_sla_a = len(df_azix_data[(df_azix_data['Status'].isin(['Pendente', 'Pendente - Retorno', 'Aguardando Reivindicação'])) & (df_azix_data['Status_SLA'].astype(str).str.contains('Atrasado|Vence Hoje', case=False, na=False))]) if not df_azix_data.empty and 'Status_SLA' in df_azix_data.columns else 0
         dentro_sla_a = pend_a - fora_sla_a
         
-        # --- LÓGICA DE PRODUÇÃO AZIX HOJE (LIDA DOS LOGS) ---
-        azix_hoje_conc = len(logs_hoje[logs_hoje['Acao'].astype(str).str.contains("Concluiu Azix", case=False)]) if not df_logs_global.empty else 0
-        azix_hoje_avan = len(logs_hoje[logs_hoje['Acao'].astype(str).str.contains("Azix para Mktp", case=False)]) if not df_logs_global.empty else 0
-        
         colQ, colA = st.columns(2)
         with colQ:
             st.markdown("<div style='background-color: #f0f8ff; padding: 20px; border-radius: 10px; border-left: 8px solid #0284c7; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>", unsafe_allow_html=True)
@@ -447,14 +443,9 @@ else:
             st.markdown("<h2 style='text-align: center; color: #d97706; margin-top:0;'>🔶 OPERAÇÃO AZIX / MKTP</h2>", unsafe_allow_html=True)
             st.markdown(f"<h3 style='text-align: center;'>📦 Total na Base: <b>{tot_a}</b></h3>", unsafe_allow_html=True)
             c4, c5, c6 = st.columns(3)
-            c4.metric("🎫 Fila Atual", pend_a)
+            c4.metric("🎫 Fila (Pendente)", pend_a)
             c5.metric("✅ No Prazo", dentro_sla_a)
-            c6.metric("🔥 Atrasados", fora_sla_a)
-            st.write("---")
-            st.markdown("<p style='text-align: center; color: #92400e; margin-bottom:5px;'><b>📊 Desempenho Azix (Hoje):</b></p>", unsafe_allow_html=True)
-            c7, c8 = st.columns(2)
-            c7.metric("✅ Encerrados", azix_hoje_conc)
-            c8.metric("⏭️ Passaram Etapa", azix_hoje_avan)
+            c6.metric("🔥 Atrasados/Críticos", fora_sla_a)
             st.markdown("</div>", unsafe_allow_html=True)
 
         st.write("---")
@@ -479,7 +470,7 @@ else:
         time.sleep(15); st.cache_data.clear(); st.rerun()
 
     # ===================================================
-    # 👑 VISÃO DO GESTOR (ADMIN)
+    # 👑 VISÃO DO GESTOR (ADMIN) - DASHBOARDS E FILTRO DE DATA
     # ===================================================
     elif modo_gerente:
         st.title("📊 Painel de Controle - Gestão")
@@ -498,32 +489,18 @@ else:
         ranking_periodo = pd.DataFrame()
         df_logs_periodo = pd.DataFrame()
         
-        azix_concluidos_periodo = 0
-        azix_avancados_periodo = 0
-        importados_azix = 0
-        
         if not df_logs.empty:
             df_logs['DataReal'] = pd.to_datetime(df_logs['DataHora'].str.split(' ').str[0], format="%d/%m/%Y", errors='coerce').dt.date
             df_logs_periodo = df_logs[(df_logs['DataReal'] >= data_inicio) & (df_logs['DataReal'] <= data_fim)].copy()
             
-            feitos_periodo = df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Finalizou|Encerrada|Concluiu Azix", case=False)]
+            feitos_periodo = df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Finalizou|Encerrada", case=False)]
             if not feitos_periodo.empty:
                 ranking_periodo = feitos_periodo['Usuario'].value_counts().reset_index()
                 ranking_periodo.columns = ['Nome', 'Qtd']
-                
-            # Ler a história do Azix na Máquina do Tempo
-            azix_concluidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Concluiu Azix", case=False)])
-            azix_avancados_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Azix para Mktp", case=False)])
-            
-            # Soma os importados no período
-            logs_importacao = df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Adicionou", case=False)]
-            for acao in logs_importacao['Acao']:
-                nums = re.findall(r'\d+', str(acao))
-                if nums: importados_azix += int(nums[0])
 
         # --- DASHBOARDS GERENCIAIS COM CARDS ---
         st.write("---")
-        st.subheader("📈 Análise de Produtividade e Filas (Tempo Real e Período)")
+        st.subheader("📈 Análise de Produtividade e Filas (Tempo Real)")
         
         pend_q = len(df_qualitor[df_qualitor['Status'] == 'Pendente']) if not df_qualitor.empty else 0
         fora_sla_q = len(df_qualitor[(df_qualitor['Status'] == 'Pendente') & (df_qualitor['SLA'].astype(str).str.contains('Prioridade 1|fora', case=False, na=False))]) if not df_qualitor.empty and 'SLA' in df_qualitor.columns else 0
@@ -543,14 +520,8 @@ else:
         col2.markdown(f"""
         <div style='background-color: #fff7ed; padding: 20px; border-radius: 10px; border-left: 5px solid #d97706; margin-bottom: 20px;'>
             <h4 style='color: #b45309; margin-top:0;'>🔶 Azix / Marketplace</h4>
-            <h2>{pend_a} <span style='font-size: 0.5em; font-weight: normal; color: gray;'>Pendentes Atuais</span></h2>
-            <p style='color: #dc2626; font-size: 0.9em; margin-bottom: 10px;'>🔥 {fora_sla_a} Atrasados/Críticos</p>
-            <div style='border-top: 1px solid #fde68a; padding-top: 10px; margin-top: 10px;'>
-                <p style='color: #92400e; margin:0; font-size: 0.85em;'><b>No Período Filtrado acima:</b></p>
-                <p style='color: #b45309; margin:0; font-size: 0.85em;'>📥 Importados p/ fila: <b>{importados_azix}</b></p>
-                <p style='color: #16a34a; margin:0; font-size: 0.85em;'>✅ Encerrados: <b>{azix_concluidos_periodo}</b></p>
-                <p style='color: #0284c7; margin:0; font-size: 0.85em;'>⏭️ Avançaram Etapa: <b>{azix_avancados_periodo}</b></p>
-            </div>
+            <h2>{pend_a} <span style='font-size: 0.5em; font-weight: normal; color: gray;'>Pendentes</span></h2>
+            <p style='color: #dc2626; margin-bottom:0;'>🔥 {fora_sla_a} Atrasados/Críticos</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -1053,11 +1024,8 @@ else:
                                 fila['Peso_SLA'] = fila['SLA'].astype(str).apply(lambda x: 1 if 'fora' in x.lower() else 2)
                                 fila = fila.sort_values(by='Peso_SLA', kind='stable')
                             idx_linha = int(fila.iloc[0].name) + 2 
-                            aba_chamados.update_cell(idx_linha, COL_STATUS, "Em Andamento")
-                            aba_chamados.update_cell(idx_linha, COL_RESP, usuario)
-                            aba_chamados.update_cell(idx_linha, COL_INICIO, hora_texto())          
-                            registrar_log(usuario, "Pegou chamado Qualitor")
-                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                            aba_chamados.update_cell(idx_linha, COL_STATUS, "Em Andamento"); aba_chamados.update_cell(idx_linha, COL_RESP, usuario); aba_chamados.update_cell(idx_linha, COL_INICIO, hora_texto())          
+                            registrar_log(usuario, "Pegou chamado Qualitor"); st.cache_data.clear(); time.sleep(1); st.rerun()
                     else: 
                         st_autorefresh(interval=60000, key="refresh_fila_vazia")
 
