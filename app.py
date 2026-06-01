@@ -412,7 +412,7 @@ else:
     # ===================================================
     # 📺 MODO TELÃO (TV DO SALÃO)
     # ===================================================
-if usuario == "TV":
+    if usuario == "TV":
         st.markdown("<h1 style='text-align: center; color: #1E90FF; font-size: 50px;'>📺 Painel de Operações - Frigelar</h1>", unsafe_allow_html=True)
         st.markdown("""<style>[data-testid="stSidebar"], header {display: none;} .block-container {padding-top: 1rem; max-width: 98%;}</style>""", unsafe_allow_html=True)
         if st.button("Sair (Logout da TV)"): del st.session_state['usuario']; st.rerun()
@@ -479,9 +479,9 @@ if usuario == "TV":
         time.sleep(15); st.cache_data.clear(); st.rerun()
 
     # ===================================================
-    # 👑 VISÃO DO GESTOR (ADMIN) - DASHBOARDS E FILTRO DE DATA
+    # 👑 VISÃO DO GESTOR (ADMIN)
     # ===================================================
-elif modo_gerente:
+    elif modo_gerente:
         st.title("📊 Painel de Controle - Gestão")
         st.caption(f"Última atualização: {hora_texto()}")
         if st.button("🔄 Atualizar Tudo (Limpar Cache)"): st.cache_data.clear(); st.rerun()
@@ -1053,8 +1053,11 @@ elif modo_gerente:
                                 fila['Peso_SLA'] = fila['SLA'].astype(str).apply(lambda x: 1 if 'fora' in x.lower() else 2)
                                 fila = fila.sort_values(by='Peso_SLA', kind='stable')
                             idx_linha = int(fila.iloc[0].name) + 2 
-                            aba_chamados.update_cell(idx_linha, COL_STATUS, "Em Andamento"); aba_chamados.update_cell(idx_linha, COL_RESP, usuario); aba_chamados.update_cell(idx_linha, COL_INICIO, hora_texto())          
-                            registrar_log(usuario, "Pegou chamado Qualitor"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                            aba_chamados.update_cell(idx_linha, COL_STATUS, "Em Andamento")
+                            aba_chamados.update_cell(idx_linha, COL_RESP, usuario)
+                            aba_chamados.update_cell(idx_linha, COL_INICIO, hora_texto())          
+                            registrar_log(usuario, "Pegou chamado Qualitor")
+                            st.cache_data.clear(); time.sleep(1); st.rerun()
                     else: 
                         st_autorefresh(interval=60000, key="refresh_fila_vazia")
 
