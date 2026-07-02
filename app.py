@@ -596,6 +596,80 @@ else:
         else:
             st.info("A base Qualitor está vazia ou sem a coluna 'Etapa'.")
 
+        # --- HEADCOUNT E DIMENSIONAMENTO (WFM) ---
+        st.write("---")
+        st.subheader("👥 Força de Trabalho e Dimensionamento (WFM)")
+        
+        # 1. Calcular Headcount de Hoje pelos Logs
+        hoje_str = data_hoje()
+        logs_do_dia = df_logs[df_logs['DataHora'].astype(str).str.contains(hoje_str)] if not df_logs.empty else pd.DataFrame()
+        
+        qtd_azix_hoje = 0
+        qtd_qualitor_hoje = 0
+        nomes_azix = ""
+        nomes_qualitor = ""
+        
+        if not logs_do_dia.empty:
+            usuarios_logados = logs_do_dia['Usuario'].unique()
+            # Filtra os chefes e a TV para não "sujar" o headcount operacional
+            ops_reais = [u for u in usuarios_logados if u not in ADMINS and u != "TV"]
+            
+            # Conta quem é de qual Squad
+            ops_azix = [u for u in ops_reais if u in SQUAD_AZIX or u in SQUAD_MKTP]
+            ops_qualitor = [u for u in ops_reais if u not in SQUAD_AZIX and u not in SQUAD_MKTP]
+            
+            qtd_azix_hoje = len(ops_azix)
+            qtd_qualitor_hoje = len(ops_qualitor)
+            
+            # Prepara a lista de nomes formatada separada por vírgula
+            nomes_azix = ", ".join(ops_azix) if qtd_azix_hoje > 0 else "Nenhum"
+            nomes_qualitor = ", ".join(ops_qualitor) if qtd_qualitor_hoje > 0 else "Nenhum"
+
+        c_wfm1, c_wfm2, c_wfm3 = st.columns(3)
+        
+        with c_wfm1:
+            st.markdown(f"""
+            <div style='background-color: #f0f9ff; padding: 15px; border-radius: 8px; border-left: 5px solid #0284c7; height: 100%;'>
+                <p style='margin:0; color: #0369a1; font-size: 0.9em;'>Operadores Qualitor (Atuaram Hoje):</p>
+                <h2 style='margin:0; color: #0f172a;'>👨‍💻 {qtd_qualitor_hoje}</h2>
+                <p style='margin-top:10px; font-size: 0.75em; color: #475569;'><b>Nomes:</b> {nomes_qualitor}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with c_wfm2:
+            st.markdown(f"""
+            <div style='background-color: #fff7ed; padding: 15px; border-radius: 8px; border-left: 5px solid #d97706; height: 100%;'>
+                <p style='margin:0; color: #b45309; font-size: 0.9em;'>Operadores Azix/Mktp (Atuaram Hoje):</p>
+                <h2 style='margin:0; color: #0f172a;'>👨‍💻 {qtd_azix_hoje}</h2>
+                <p style='margin-top:10px; font-size: 0.75em; color: #475569;'><b>Nomes:</b> {nomes_azix}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with c_wfm3:
+            st.markdown("<p style='margin:0; color: #475569; font-weight: bold;'>⏱️ Calculadora Qualitor</p>", unsafe_allow_html=True)
+            col_tma, col_hora = st.columns(2)
+            tma_minutos = col_tma.number_input("TMA (min):", min_value=1, value=8)
+            hora_fim = col_hora.time_input("Fim Turno:", value=datetime.strptime("18:00", "%H:%M").time())
+            
+            agora = hora_brasil()
+            fim_expediente_dt = agora.replace(hour=hora_fim.hour, minute=hora_fim.minute, second=0, microsecond=0)
+            minutos_restantes = int((fim_expediente_dt - agora).total_seconds() / 60)
+            
+            if minutos_restantes > 0 and pend_q > 0:
+                pessoas_necessarias = np.ceil((pend_q * tma_minutos) / minutos_restantes)
+                st.info(f"**Ideal:** {int(pessoas_necessarias)} pessoas para zerar a fila hoje.")
+                
+                # O Cérebro Mágico: Compara quem você tem hoje com quem você precisa!
+                if qtd_qualitor_hoje < pessoas_necessarias:
+                    st.error(f"⚠️ Risco de atraso! Faltam {int(pessoas_necessarias - qtd_qualitor_hoje)} operadores.")
+                else:
+                    st.success("✅ Equipa perfeitamente dimensionada para a fila!")
+            elif pend_q == 0:
+                st.success("🎉 Fila Qualitor zerada!")
+            else:
+                st.error("⏰ Expediente encerrado.")
+
+        
             # --- NOVA VISUALIZAÇÃO: MÉTRICAS DE VALIDAÇÃO DA RECEITA (AZIX) ---
         st.write("---")
         st.markdown("### 🏛️ Validação de Endereço na Receita (Azix)")
@@ -702,7 +776,7 @@ else:
                     
                     if tipo_importacao == "1. Qualitor (Substituição)":
                         if 'PROCESSO' in df_bruto.columns and 'Chamado' in df_bruto.columns:
-                            # REGRA DE OURO QUALITOR (INTACTA!)
+                            # REGRA DE OURO QUALITOR
                             df_filtrado = df_bruto[~df_bruto['PROCESSO'].astype(str).str.contains("SOLICITANTE ATUALIZAR INFORMAÇÕES", na=False)].copy()
                             de_para = {
                                 "(SAC) - ARREPENDIMENTO V3": "Arrependimento", "(SAC) - CANCELAMENTO V3": "Cancelamento de pedido",
@@ -711,9 +785,23 @@ else:
                             }
                             df_filtrado['Etapa_Limpa'] = df_filtrado['PROCESSO'].map(de_para).fillna(df_filtrado['PROCESSO'])
                             
+                            # Identifica quem é MKTP
+                            is_mktp = pd.Series(False, index=df_filtrado.index)
                             if 'Etapa' in df_filtrado.columns:
-                                filtro_mktp = df_filtrado['Etapa'].astype(str).str.contains("REEMBOLSO MKTP", na=False, case=False)
-                                df_filtrado.loc[filtro_mktp, 'Etapa_Limpa'] = "Reembolso MKTP"
+                                is_mktp = df_filtrado['Etapa'].astype(str).str.contains("REEMBOLSO MKTP", na=False, case=False)
+                                df_filtrado.loc[is_mktp, 'Etapa_Limpa'] = "Reembolso MKTP"
+                            
+                            def def_prioridade(linha): return "🔥 Prioridade (Vence Hoje)" if "PRIORIDADE 1" in str(linha).upper() else "Normal ✅"
+                            df_filtrado['SLA_Final'] = df_filtrado['Lista'].apply(def_prioridade) if 'Lista' in df_filtrado.columns else "Normal ✅"
+                            
+                            # ---> 🚀 NOVA REGRA: MUDAR ETAPA PARA "Prioridade" (Exceto MKTP) <---
+                            if 'Lista' in df_filtrado.columns:
+                                is_prio = df_filtrado['Lista'].astype(str).str.upper().str.contains("PRIORIDADE 1", na=False)
+                                df_filtrado.loc[is_prio & ~is_mktp, 'Etapa_Limpa'] = "Prioridade"
+                            
+                            df_novo = pd.DataFrame()
+                            df_novo['ID'] = ""; df_novo['Dados'] = df_filtrado['Chamado'].astype(str).str.replace(r'\.0$', '', regex=True); df_novo['Status'] = "Pendente"; df_novo['Etapa'] = df_filtrado['Etapa_Limpa']; df_novo['SLA'] = df_filtrado['SLA_Final']; df_novo['Responsavel'] = ""; df_novo['Inicio'] = ""; df_novo['Data_Conclusao'] = "" 
+                            df_pronto = df_novo.drop_duplicates(subset=['Dados'])
                             
                             def def_prioridade(linha): return "🔥 Prioridade (Vence Hoje)" if "PRIORIDADE 1" in str(linha).upper() else "Normal ✅"
                             df_filtrado['SLA_Final'] = df_filtrado['Lista'].apply(def_prioridade) if 'Lista' in df_filtrado.columns else "Normal ✅"
