@@ -19,7 +19,7 @@ import re
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
 
 # --- 👑 ADMINISTRAÇÃO E SQUADS ---
-ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes", "eduardosouza", "biancamoura"] 
+ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes", "eduardosouza", "biancamoura", "andreacastro"] 
 
 SQUAD_AZIX = ["charleneoliveira", "brunasouza2", "viniciosmarques2"] 
 SQUAD_MKTP = ["vitoriabraga", "fabiolapereira"] 
