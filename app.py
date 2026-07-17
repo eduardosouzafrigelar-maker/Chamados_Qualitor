@@ -1166,7 +1166,13 @@ else:
                     else: st.info(f"✅ Status do SLA: {sla_atual}")
 
                     st.markdown(f"### 📞 Chamado: **{num}** | Etapa: **{dados.get('Etapa', 'N/A')}**")
-                    if str(num) != 'N/A': st.link_button("🔗 Abrir no Qualitor", f"https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado={num}")
+                    if str(num) != 'N/A': 
+                        link_q = f"https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado={num}"
+                        
+                        st.error("🛡️ **Bloqueio de TI (Qualitor + Microsoft SSO)**")
+                        st.markdown("<span style='font-size: 0.9em;'>Impossibilitado temporariamente via link direto</span>", unsafe_allow_html=True)
+                        st.markdown("1️⃣ Clique no **ícone de copiar** no canto superior direito da caixa abaixo.<br>2️⃣ Pressione **Ctrl + T** (Nova Aba) e **Ctrl + V** (Colar).", unsafe_allow_html=True)
+                        st.code(link_q, language="text")
                     
                     with st.expander("✨ Resumir Histórico do Chamado (Inteligência Artificial)"):
                         historico = st.text_area("Cole aqui os assentamentos do cliente para análise rápida:", height=100)
@@ -1241,6 +1247,7 @@ else:
                         st_autorefresh(interval=60000, key="refresh_fila_vazia")
 
                         # --- HISTÓRICO DE CHAMADOS (QUALITOR) ---
+            # --- HISTÓRICO DE CHAMADOS (QUALITOR) ---
             st.write("---")
             if not df.empty:
                 hist = df[(df['Status']=='Concluido') & (df['Responsavel']==usuario)].copy()
@@ -1251,12 +1258,14 @@ else:
                     st.subheader(f"✅ Seus Concluídos Hoje: **{qtd_hoje}**")
                     
                     if qtd_hoje > 0:
-                        hist_hoje['Link'] = "https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado=" + hist_hoje['Dados'].astype(str)
                         hist_hoje['Tempo_Gasto'] = hist_hoje.apply(lambda row: calcular_duracao_str(row.get('Inicio', ''), row.get('Data_Conclusao', '')), axis=1)
-                        hist_hoje = hist_hoje.rename(columns={'Data_Conclusao': 'Horário'})
-                        cols_show = ['Link', 'Etapa', 'SLA', 'Tempo_Gasto', 'Horário'] if 'SLA' in hist_hoje.columns else ['Link', 'Etapa', 'Tempo_Gasto', 'Horário']
-                        st.dataframe(hist_hoje[cols_show].tail(15), hide_index=True, use_container_width=True,
-                            column_config={"Link": st.column_config.LinkColumn("Chamado", display_text=r"cdchamado=(.*)")})
+                        
+                        st.markdown("*(Para reabrir ou consultar um chamado, clique na célula do número, faça Ctrl+C e cole na barra de busca do Qualitor)*")
+                        
+                        hist_hoje = hist_hoje.rename(columns={'Data_Conclusao': 'Horário', 'Dados': 'Nº Chamado'})
+                        cols_show = ['Nº Chamado', 'Etapa', 'SLA', 'Tempo_Gasto', 'Horário'] if 'SLA' in hist_hoje.columns else ['Nº Chamado', 'Etapa', 'Tempo_Gasto', 'Horário']
+                        
+                        st.dataframe(hist_hoje[cols_show].tail(15), hide_index=True, use_container_width=True)
                 else:
                     st.caption("Nenhum chamado concluído por você hoje, ainda. Vamos lá!")
 
