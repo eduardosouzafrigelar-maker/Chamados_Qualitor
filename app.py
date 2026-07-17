@@ -1169,7 +1169,7 @@ else:
                     if str(num) != 'N/A': 
                         link_q = f"https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado={num}"
                         
-                        st.error("🛡️ **Bloqueio de TI (Qualitor + Microsoft SSO)**")
+                        st.error("🛡️ **PRIORIDADE: Chamados com SLA vencendo hoje - Necessário avançar etapa)**")
                         st.markdown("<span style='font-size: 0.9em;'>Impossibilitado temporariamente via link direto</span>", unsafe_allow_html=True)
                         st.markdown("1️⃣ Clique no **ícone de copiar** no canto superior direito da caixa abaixo.<br>2️⃣ Pressione **Ctrl + T** (Nova Aba) e **Ctrl + V** (Colar).", unsafe_allow_html=True)
                         st.code(link_q, language="text")
