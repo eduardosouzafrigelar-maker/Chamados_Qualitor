@@ -74,6 +74,9 @@ def alertar_teams(mensagem):
 # ==========================================
 # --- 🔌 O NOVO MOTOR V8 (FIREBASE) ---
 # ==========================================
+# Variáveis vazias para não quebrar a lógica visual que ainda as procura
+sh = aba_chamados = aba_users = aba_logs = aba_transp = aba_azix = "DESATIVADO"
+
 if not firebase_admin._apps:
     try:
         cred_dict = dict(st.secrets["firebase"])
@@ -127,6 +130,7 @@ def calcular_sla_bizdays(data_entrada_str):
 def registrar_log(usuario, acao):
     if db is not None:
         try:
+            import uuid
             doc_id = f"log_{hora_texto().replace('/','').replace(':','').replace(' ','_')}_{str(uuid.uuid4())[:6]}"
             db.collection('logs_operacao').document(doc_id).set({
                 "Usuario": usuario, "Acao": acao, "DataHora": hora_texto()
@@ -177,7 +181,6 @@ def carregar_logs_dia():
         if not docs: return pd.DataFrame()
         return pd.DataFrame([doc.to_dict() for doc in docs])
     except: return pd.DataFrame()
-
 def ler_mural():
     try:
         with open("mural.txt", "r", encoding="utf-8") as f: return f.read().strip()
