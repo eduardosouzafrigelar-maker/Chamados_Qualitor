@@ -159,57 +159,66 @@ def calcular_sla_bizdays(data_entrada_str):
         else: return f"🚨 Atrasado ({dias_uteis} dias úteis)"
     except: return "⏳ A calcular..."
 
-# --- INICIAR CONEXÃO ---
-sh, aba_chamados, aba_users, aba_logs, aba_transp, aba_azix = conectar_e_abrir_abas()
-if isinstance(sh, str): st.error(f"Erro de conexão: {sh}"); st.stop()
-if aba_chamados is None: st.error("Erro ao carregar abas principais."); st.stop()
+# ==========================================
+# --- 🔌 O NOVO MOTOR V8 (FIREBASE) ---
+# ==========================================
+# Desativamos as abas antigas para garantir que o sistema não tenta escrever no Google Sheets
+aba_chamados = aba_users = aba_logs = aba_transp = aba_azix = "DESATIVADO"
 
 def registrar_log(usuario, acao):
-    try: aba_logs.append_row([usuario, acao, hora_texto()])
-    except: pass
+    if db is not None:
+        try:
+            import uuid
+            # Cria um ID único para cada log no Firebase
+            doc_id = f"log_{hora_texto().replace('/','').replace(':','').replace(' ','_')}_{str(uuid.uuid4())[:6]}"
+            db.collection('logs_operacao').document(doc_id).set({
+                "Usuario": usuario, "Acao": acao, "DataHora": hora_texto()
+            })
+        except: pass
 
 @st.cache_data(ttl=15)
 def carregar_dados_chamados():
+    if db is None: return pd.DataFrame()
     try:
-        df = pd.DataFrame(aba_chamados.get_all_records())
-        if 'Dados' in df.columns: df['Dados'] = df['Dados'].astype(str).str.replace(r'\.0$', '', regex=True)
-        if 'Status' in df.columns: df['Status'] = df['Status'].astype(str).str.strip()
-        return df
+        docs = db.collection('chamados_qualitor').get()
+        if not docs: return pd.DataFrame()
+        return pd.DataFrame([doc.to_dict() for doc in docs])
     except: return pd.DataFrame()
 
 @st.cache_data(ttl=15)
 def carregar_dados_azix():
-    if aba_azix is None: return pd.DataFrame()
+    if db is None: return pd.DataFrame()
     try:
-        df = pd.DataFrame(aba_azix.get_all_records())
-        if 'Nº Pedido venda' in df.columns: df['Nº Pedido venda'] = df['Nº Pedido venda'].astype(str).str.replace(r'\.0$', '', regex=True)
-        if 'Status' in df.columns: df['Status'] = df['Status'].astype(str).str.strip()
-        return df
+        docs = db.collection('chamados_azix').get()
+        if not docs: return pd.DataFrame()
+        return pd.DataFrame([doc.to_dict() for doc in docs])
     except: return pd.DataFrame()
 
 @st.cache_data(ttl=30)
 def carregar_status_equipe():
+    if db is None: return pd.DataFrame()
     try:
-        dados = aba_users.get_all_values()
-        if not dados: return pd.DataFrame()
-        df = pd.DataFrame(dados[1:], columns=dados[0])
-        return df.loc[:, df.columns != ''] 
+        docs = db.collection('usuarios').get()
+        if not docs: return pd.DataFrame()
+        return pd.DataFrame([doc.to_dict() for doc in docs])
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=3600) 
+@st.cache_data(ttl=3600)
 def carregar_agenda_transp():
-    if aba_transp is None: return pd.DataFrame()
-    try: return pd.DataFrame(aba_transp.get_all_records())
+    if db is None: return pd.DataFrame()
+    try:
+        docs = db.collection('transportadoras').get()
+        if not docs: return pd.DataFrame()
+        return pd.DataFrame([doc.to_dict() for doc in docs])
     except: return pd.DataFrame()
 
 @st.cache_data(ttl=15)
 def carregar_logs_dia():
-    if aba_logs is None: return pd.DataFrame()
+    if db is None: return pd.DataFrame()
     try:
-        dados = aba_logs.get_all_values()
-        if not dados: return pd.DataFrame()
-        if dados[0][0].lower() in ['usuario', 'nome', 'operador']: return pd.DataFrame(dados[1:], columns=["Usuario", "Acao", "DataHora"])
-        else: return pd.DataFrame(dados, columns=["Usuario", "Acao", "DataHora"])
+        docs = db.collection('logs_operacao').get()
+        if not docs: return pd.DataFrame()
+        return pd.DataFrame([doc.to_dict() for doc in docs])
     except: return pd.DataFrame()
 
 def ler_mural():
@@ -298,8 +307,7 @@ if 'usuario' not in st.session_state:
                     st.session_state['tamanho_fila_anterior'] = 0 
                     registrar_log(user_digitado, "LOGIN") 
                     try:
-                        idx = df_equipe.index[df_equipe['Colaboradores'] == user_digitado].tolist()[0] + 2
-                        aba_users.update_cell(idx, 3, "Disponivel")
+                        db.collection('usuarios').document(user_digitado).update({'Status': 'Disponivel'})
                         st.cache_data.clear() 
                     except: pass
                     st.rerun()
@@ -369,11 +377,14 @@ else:
         st.info(f"Status Atual: **{status_real}**")
         c1, c2 = st.columns(2)
         if c1.button("🟢 Online"):
-            if linha_planilha: aba_users.update_cell(linha_planilha, 3, "Disponivel"); registrar_log(usuario, "Ficou Disponivel"); st.cache_data.clear(); st.rerun()
+            db.collection('usuarios').document(usuario).update({'Status': 'Disponivel'})
+            registrar_log(usuario, "Ficou Disponivel"); st.cache_data.clear(); st.rerun()
         if c2.button("☕ Pausa"):
-            if linha_planilha: aba_users.update_cell(linha_planilha, 3, "Pausa"); registrar_log(usuario, "Entrou em Pausa"); st.cache_data.clear(); st.rerun()
+            db.collection('usuarios').document(usuario).update({'Status': 'Pausa'})
+            registrar_log(usuario, "Entrou em Pausa"); st.cache_data.clear(); st.rerun()
         if st.button("🚽 Banheiro"):
-            if linha_planilha: aba_users.update_cell(linha_planilha, 3, "Banheiro"); registrar_log(usuario, "Foi ao Banheiro"); st.cache_data.clear(); st.rerun()
+            db.collection('usuarios').document(usuario).update({'Status': 'Banheiro'})
+            registrar_log(usuario, "Foi ao Banheiro"); st.cache_data.clear(); st.rerun()
         
         st.divider()
         st.subheader("🏆 Seu Desempenho Hoje")
@@ -416,14 +427,10 @@ else:
             if st.button("Salvar Nova Senha", use_container_width=True):
                 if nova_senha == confirma_senha and len(nova_senha) >= 4:
                     try:
-                        cols_users = df_equipe.columns.tolist()
-                        if "Senha" in cols_users:
-                            col_senha_idx = cols_users.index("Senha") + 1
-                            aba_users.update_cell(linha_planilha, col_senha_idx, nova_senha)
-                            registrar_log(usuario, "Mudou a própria senha")
-                            st.success("✅ Senha atualizada! Use no próximo login.")
-                            st.cache_data.clear()
-                        else: st.error("Erro: Coluna 'Senha' não encontrada.")
+                        db.collection('usuarios').document(usuario).update({'Senha': nova_senha})
+                        registrar_log(usuario, "Mudou a própria senha")
+                        st.success("✅ Senha atualizada! Use no próximo login.")
+                        st.cache_data.clear()
                     except Exception as e: st.error(f"Erro ao mudar senha: {e}")
                 else: st.warning("⚠️ Senhas não batem ou são curtas (mín. 4).")
                 
