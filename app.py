@@ -508,45 +508,104 @@ else:
         if st.button("🔄 Atualizar Tudo (Limpar Cache)"): st.cache_data.clear(); st.rerun()
 
         # ===================================================
-        # 🚀 MÓDULO DE MIGRAÇÃO (USO ÚNICO)
+        # 🚀 MÓDULO DE MIGRAÇÃO TOTAL (LOTE INTELIGENTE)
         # ===================================================
         st.write("---")
-        with st.expander("🚀 MIGRAR DADOS PARA O FIREBASE (ROBÔ)"):
-            st.warning("⚠️ Atenção: Este robô vai ler a Planilha atual e copiar tudo para o Firestore.")
+        with st.expander("🚀 MIGRAR DADOS PARA O FIREBASE (ROBÔ TURBO)"):
+            st.warning("⚠️ Este robô divide os envios em pacotes de 400 linhas para não sobrecarregar a rede.")
             
-            if st.button("Iniciar Migração Qualitor e Azix", type="primary"):
+            if st.button("Iniciar Migração Completa", type="primary"):
                 if db is None:
-                    st.error("O Firebase não está conectado!")
+                    st.error("O Firebase não está conectado! Verifique a chave no Cofre.")
                 else:
-                    with st.spinner("Transferindo base Qualitor..."):
+                    # Função inteligente que fatia o envio de 400 em 400
+                    def migrar_em_lotes(df, collection_name, id_col, id_fallback=''):
+                        if df.empty: return 0
+                        count = 0
+                        batch = db.batch()
+                        ops = 0
+                        for _, row in df.iterrows():
+                            doc_id = str(row.get(id_col, row.get(id_fallback, ''))).replace('.0', '').strip()
+                            if doc_id and doc_id != 'nan':
+                                doc_ref = db.collection(collection_name).document(doc_id)
+                                dados = {k: str(v) for k, v in row.to_dict().items() if pd.notna(v)}
+                                batch.set(doc_ref, dados)
+                                count += 1
+                                ops += 1
+                                # Quando chega a 400, ele envia o pacote e começa um novo
+                                if ops == 400:
+                                    batch.commit()
+                                    batch = db.batch()
+                                    ops = 0
+                        # Envia a sobra final que não chegou a dar 400
+                        if ops > 0:
+                            batch.commit()
+                        return count
+
+                    # 1. QUALITOR
+                    with st.spinner("1/5: Transferindo base Qualitor (Fatiando)..."):
                         df_q = carregar_dados_chamados()
-                        if not df_q.empty:
-                            lote_q = db.batch()
-                            for _, row in df_q.iterrows():
-                                num_chamado = str(row.get('Dados', '')).replace('.0', '')
-                                if num_chamado and num_chamado != 'nan':
-                                    doc_ref = db.collection('chamados_qualitor').document(num_chamado)
-                                    # Converte a linha inteira num dicionário limpo
-                                    dados_limpos = {k: str(v) for k, v in row.to_dict().items() if pd.notna(v)}
-                                    lote_q.set(doc_ref, dados_limpos)
-                            lote_q.commit()
-                            st.success(f"✅ {len(df_q)} Chamados do Qualitor migrados!")
+                        c_q = migrar_em_lotes(df_q, 'chamados_qualitor', 'Dados')
+                        st.success(f"✅ {c_q} Chamados Qualitor migrados!")
                     
-                    with st.spinner("Transferindo base Azix/Mktp..."):
+                    # 2. AZIX
+                    with st.spinner("2/5: Transferindo base Azix (Pode levar 1 minuto)..."):
                         df_a = carregar_dados_azix()
-                        if not df_a.empty:
-                            lote_a = db.batch()
-                            for _, row in df_a.iterrows():
-                                num_pedido = str(row.get('Nº Pedido venda', row.get('Dados', ''))).replace('.0', '')
-                                if num_pedido and num_pedido != 'nan':
-                                    doc_ref = db.collection('chamados_azix').document(num_pedido)
-                                    dados_limpos = {k: str(v) for k, v in row.to_dict().items() if pd.notna(v)}
-                                    lote_a.set(doc_ref, dados_limpos)
-                            lote_a.commit()
-                            st.success(f"✅ {len(df_a)} Pedidos do Azix migrados!")
+                        c_a = migrar_em_lotes(df_a, 'chamados_azix', 'Nº Pedido venda', 'Dados')
+                        st.success(f"✅ {c_a} Pedidos Azix migrados!")
+
+                    # 3. USUÁRIOS
+                    with st.spinner("3/5: Transferindo Equipe..."):
+                        df_u = carregar_status_equipe()
+                        c_u = migrar_em_lotes(df_u, 'usuarios', 'Colaboradores')
+                        st.success(f"✅ {c_u} Operadores migrados!")
+
+                    # 4. TRANSPORTADORAS
+                    with st.spinner("4/5: Transferindo Agenda..."):
+                        df_t = carregar_agenda_transp()
+                        count_t = 0
+                        if not df_t.empty and 'Transportadora' in df_t.columns:
+                            batch_t = db.batch()
+                            ops = 0
+                            for _, row in df_t.iterrows():
+                                nome_transp = str(row.get('Transportadora', '')).strip().replace('/', '-')
+                                if nome_transp and nome_transp != 'nan':
+                                    doc_ref = db.collection('transportadoras').document(nome_transp)
+                                    dados = {k: str(v) for k, v in row.to_dict().items() if pd.notna(v)}
+                                    batch_t.set(doc_ref, dados)
+                                    count_t += 1
+                                    ops += 1
+                                    if ops == 400:
+                                        batch_t.commit()
+                                        batch_t = db.batch()
+                                        ops = 0
+                            if ops > 0: batch_t.commit()
+                        st.success(f"✅ {count_t} Transportadoras migradas!")
+
+                    # 5. LOGS
+                    with st.spinner("5/5: Transferindo Histórico de Logs (Últimos 3000)..."):
+                        df_l = carregar_logs_dia()
+                        count_l = 0
+                        if not df_l.empty:
+                            df_l_recentes = df_l.tail(3000)
+                            batch_l = db.batch()
+                            ops = 0
+                            for idx, row in df_l_recentes.iterrows():
+                                id_log = f"log_{idx}"
+                                doc_ref = db.collection('logs_operacao').document(id_log)
+                                dados = {k: str(v) for k, v in row.to_dict().items() if pd.notna(v)}
+                                batch_l.set(doc_ref, dados)
+                                count_l += 1
+                                ops += 1
+                                if ops == 400:
+                                    batch_l.commit()
+                                    batch_l = db.batch()
+                                    ops = 0
+                            if ops > 0: batch_l.commit()
+                        st.success(f"✅ {count_l} Registros de log migrados!")
                     
                     st.balloons()
-                    st.success("🎉 MIGRAÇÃO CONCLUÍDA COM SUCESSO! Veja no painel do Firebase.")
+                    st.success("🎉 MIGRAÇÃO TOTAL CONCLUÍDA! O Firebase engoliu tudo com sucesso.")
         
         # --- MÁQUINA DO TEMPO (FILTRO DE PERÍODO NO FORMATO BR) ---
         st.write("---")
