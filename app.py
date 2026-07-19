@@ -74,21 +74,25 @@ def alertar_teams(mensagem):
 # ==========================================
 # --- 🔌 O NOVO MOTOR V8 (FIREBASE) ---
 # ==========================================
-# Variáveis vazias para não quebrar a lógica visual que ainda as procura
+# Variáveis antigas desativadas
 sh = aba_chamados = aba_users = aba_logs = aba_transp = aba_azix = "DESATIVADO"
 
-if not firebase_admin._apps:
-    try:
-        cred_dict = dict(st.secrets["firebase"])
-        cred_dict["private_key"] = cred_dict["private_key"].replace('\\n', '\n')
-        cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
-    except Exception as e:
-        st.error(f"Erro ao conectar Firebase: {e}")
+@st.cache_resource
+def conectar_firebase():
+    if not firebase_admin._apps:
+        try:
+            cred_dict = dict(st.secrets["firebase"])
+            cred_dict["private_key"] = cred_dict["private_key"].replace('\\n', '\n')
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+        except Exception as e:
+            st.error(f"Erro nas credenciais do Firebase: {e}")
+    return firestore.client()
 
 try:
-    db = firestore.client()
-except:
+    db = conectar_firebase()
+except Exception as e:
+    st.error(f"Erro ao iniciar o Firestore: {e}")
     db = None
 
 # --- FUNÇÕES DE TEMPO E SLA ---
