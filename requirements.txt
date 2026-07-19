@@ -8,4 +8,4 @@ streamlit-autorefresh
 fpdf
 openpyxl
 numpy
-openpyxl
+
