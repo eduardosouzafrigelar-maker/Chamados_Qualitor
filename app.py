@@ -507,7 +507,46 @@ else:
         st.caption(f"Última atualização: {hora_texto()}")
         if st.button("🔄 Atualizar Tudo (Limpar Cache)"): st.cache_data.clear(); st.rerun()
 
-        
+        # ===================================================
+        # 🚀 MÓDULO DE MIGRAÇÃO (USO ÚNICO)
+        # ===================================================
+        st.write("---")
+        with st.expander("🚀 MIGRAR DADOS PARA O FIREBASE (ROBÔ)"):
+            st.warning("⚠️ Atenção: Este robô vai ler a Planilha atual e copiar tudo para o Firestore.")
+            
+            if st.button("Iniciar Migração Qualitor e Azix", type="primary"):
+                if db is None:
+                    st.error("O Firebase não está conectado!")
+                else:
+                    with st.spinner("Transferindo base Qualitor..."):
+                        df_q = carregar_dados_chamados()
+                        if not df_q.empty:
+                            lote_q = db.batch()
+                            for _, row in df_q.iterrows():
+                                num_chamado = str(row.get('Dados', '')).replace('.0', '')
+                                if num_chamado and num_chamado != 'nan':
+                                    doc_ref = db.collection('chamados_qualitor').document(num_chamado)
+                                    # Converte a linha inteira num dicionário limpo
+                                    dados_limpos = {k: str(v) for k, v in row.to_dict().items() if pd.notna(v)}
+                                    lote_q.set(doc_ref, dados_limpos)
+                            lote_q.commit()
+                            st.success(f"✅ {len(df_q)} Chamados do Qualitor migrados!")
+                    
+                    with st.spinner("Transferindo base Azix/Mktp..."):
+                        df_a = carregar_dados_azix()
+                        if not df_a.empty:
+                            lote_a = db.batch()
+                            for _, row in df_a.iterrows():
+                                num_pedido = str(row.get('Nº Pedido venda', row.get('Dados', ''))).replace('.0', '')
+                                if num_pedido and num_pedido != 'nan':
+                                    doc_ref = db.collection('chamados_azix').document(num_pedido)
+                                    dados_limpos = {k: str(v) for k, v in row.to_dict().items() if pd.notna(v)}
+                                    lote_a.set(doc_ref, dados_limpos)
+                            lote_a.commit()
+                            st.success(f"✅ {len(df_a)} Pedidos do Azix migrados!")
+                    
+                    st.balloons()
+                    st.success("🎉 MIGRAÇÃO CONCLUÍDA COM SUCESSO! Veja no painel do Firebase.")
         
         # --- MÁQUINA DO TEMPO (FILTRO DE PERÍODO NO FORMATO BR) ---
         st.write("---")
