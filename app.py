@@ -14,6 +14,8 @@ import unicodedata
 import base64
 import numpy as np
 import re
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
@@ -23,6 +25,25 @@ ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes", "eduardosouza", "biancam
 
 SQUAD_AZIX = ["charleneoliveira", "brunasouza2", "viniciosmarques2"] 
 SQUAD_MKTP = ["vitoriabraga", "fabiolapereira"] 
+
+# --- CONEXÃO FIREBASE ---
+if not firebase_admin._apps:
+    try:
+        # Puxa os dados do cofre
+        cred_dict = dict(st.secrets["firebase"])
+        # Garante que a chave privada seja lida corretamente com as quebras de linha
+        cred_dict["private_key"] = cred_dict["private_key"].replace('\\n', '\n')
+        
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        st.error(f"Erro ao conectar Firebase: {e}")
+
+# Conecta ao Banco de Dados Firestore
+try:
+    db = firestore.client()
+except:
+    db = None
 
 # --- META DIÁRIA E CELEBRAÇÃO ---
 META_DIARIA = 50
@@ -485,6 +506,8 @@ else:
         st.title("📊 Painel de Controle - Gestão")
         st.caption(f"Última atualização: {hora_texto()}")
         if st.button("🔄 Atualizar Tudo (Limpar Cache)"): st.cache_data.clear(); st.rerun()
+
+        
         
         # --- MÁQUINA DO TEMPO (FILTRO DE PERÍODO NO FORMATO BR) ---
         st.write("---")
