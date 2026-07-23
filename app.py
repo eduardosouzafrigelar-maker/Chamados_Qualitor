@@ -709,17 +709,35 @@ else:
             st.info("Aguardando as primeiras validações da equipa ou a coluna 'Validacao_Receita' ainda não foi lida na base.")
 
         # --- EXPORTAÇÃO COMPLETA COM FILTRO ---
+        # --- EXPORTAÇÃO COMPLETA COM FILTRO ---
         st.write("---")
         st.subheader("💾 Exportação de Bases e Auditoria")
+        
+        # Função para converter DataFrame em Excel em memória
+        import io
+        def df_para_excel(df_export):
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df_export.to_excel(writer, index=False, sheet_name='Sheet1')
+            return output.getvalue()
+
         cexp1, cexp2, cexp3 = st.columns(3)
-        if not df_qualitor.empty: cexp1.download_button("📥 BAIXAR BASE QUALITOR (CSV)", df_qualitor.to_csv(index=False).encode('utf-8-sig'), file_name=f"Qualitor_{data_hoje().replace('/','-')}.csv", mime="text/csv", use_container_width=True)
-        if not df_azix_data.empty: cexp2.download_button("📥 BAIXAR BASE AZIX/MKTP (CSV)", df_azix_data.to_csv(index=False).encode('utf-8-sig'), file_name=f"Azix_{data_hoje().replace('/','-')}.csv", mime="text/csv", use_container_width=True)
+        
+        if not df_qualitor.empty: 
+            excel_q = df_para_excel(df_qualitor)
+            cexp1.download_button("📥 BAIXAR BASE QUALITOR (EXCEL)", data=excel_q, file_name=f"Qualitor_{data_hoje().replace('/','-')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            
+        if not df_azix_data.empty: 
+            excel_a = df_para_excel(df_azix_data)
+            cexp2.download_button("📥 BAIXAR BASE AZIX/MKTP (EXCEL)", data=excel_a, file_name=f"Azix_{data_hoje().replace('/','-')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
         
         if not df_logs_periodo.empty: 
             df_logs_export = df_logs_periodo.drop(columns=['DataReal'])
-            nome_arquivo_logs = f"Logs_{data_inicio.strftime('%d%m')}_a_{data_fim.strftime('%d%m')}.csv"
-            cexp3.download_button("📥 BAIXAR LOGS FILTRADOS (CSV)", df_logs_export.to_csv(index=False).encode('utf-8-sig'), file_name=nome_arquivo_logs, mime="text/csv", use_container_width=True)
-        else: cexp3.info("Sem logs para este período.")
+            excel_logs = df_para_excel(df_logs_export)
+            nome_arquivo_logs = f"Logs_{data_inicio.strftime('%d%m')}_a_{data_fim.strftime('%d%m')}.xlsx"
+            cexp3.download_button("📥 BAIXAR LOGS FILTRADOS (EXCEL)", data=excel_logs, file_name=nome_arquivo_logs, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        else: 
+            cexp3.info("Sem logs para este período.")
 
         # --- GERADOR DE RELATÓRIO EXECUTIVO (PDF) ---
         st.write("---")
