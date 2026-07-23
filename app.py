@@ -23,6 +23,7 @@ ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes", "eduardosouza", "biancam
 
 SQUAD_AZIX = ["charleneoliveira", "brunasouza2", "viniciosmarques2"] 
 SQUAD_MKTP = ["vitoriabraga", "fabiolapereira"] 
+SQUAD_ATIVAS = ["Ruan Athaide", "Camila Garcia", "Marlise Borges", "Daiane Habowski", "Yasmine Goulart", "Raissa Silva"]
 
 # --- META DIÁRIA E CELEBRAÇÃO ---
 META_DIARIA = 50
@@ -80,7 +81,8 @@ def conectar_e_abrir_abas():
                 creds_dict = st.secrets["gcp_service_account"]
                 client = gspread.service_account_from_dict(creds_dict)
             except:
-                return "🚨 ERRO: Credenciais não encontradas.", None, None, None, None, None
+                # ADICIONADO MAIS UM 'None' AQUI PARA FECHAR 7 ELEMENTOS
+                return "🚨 ERRO: Credenciais não encontradas.", None, None, None, None, None, None
         
         erro_real = ""
         for tentativa in range(10):
@@ -93,14 +95,20 @@ def conectar_e_abrir_abas():
                     aba_logs = abas[2] if len(abas) > 2 else None
                     aba_transp = abas[3] if len(abas) > 3 else None
                     aba_azix = abas[4] if len(abas) > 4 else None 
-                    return sh, aba_chamados, aba_users, aba_logs, aba_transp, aba_azix
+                    aba_ativas = abas[5] if len(abas) > 5 else None 
+                    
+                    # 7 ELEMENTOS SENDO RETORNADOS CORRETAMENTE:
+                    return sh, aba_chamados, aba_users, aba_logs, aba_transp, aba_azix, aba_ativas
                 else: erro_real = "A planilha tem menos de 2 abas visíveis."
             except Exception as e:
                 erro_real = str(e)
                 time.sleep(2 + tentativa)
-        return f"Falha após 10 tentativas. Erro: {erro_real}", None, None, None, None, None
+                
+        # ADICIONADO MAIS UM 'None' AQUI
+        return f"Falha após 10 tentativas. Erro: {erro_real}", None, None, None, None, None, None
     except Exception as e:
-        return f"Erro Crítico: {str(e)}", None, None, None, None, None
+        # ADICIONADO MAIS UM 'None' AQUI
+        return f"Erro Crítico: {str(e)}", None, None, None, None, None, None
 
 # --- FUNÇÕES DE TEMPO E SLA ---
 def hora_brasil():
@@ -139,7 +147,7 @@ def calcular_sla_bizdays(data_entrada_str):
     except: return "⏳ A calcular..."
 
 # --- INICIAR CONEXÃO ---
-sh, aba_chamados, aba_users, aba_logs, aba_transp, aba_azix = conectar_e_abrir_abas()
+sh, aba_chamados, aba_users, aba_logs, aba_transp, aba_azix, aba_ativas = conectar_e_abrir_abas()
 if isinstance(sh, str): st.error(f"Erro de conexão: {sh}"); st.stop()
 if aba_chamados is None: st.error("Erro ao carregar abas principais."); st.stop()
 
@@ -147,7 +155,7 @@ def registrar_log(usuario, acao):
     try: aba_logs.append_row([usuario, acao, hora_texto()])
     except: pass
 
-@st.cache_data(ttl=15)
+@st.cache_data(ttl=30)
 def carregar_dados_chamados():
     try:
         df = pd.DataFrame(aba_chamados.get_all_records())
@@ -156,12 +164,22 @@ def carregar_dados_chamados():
         return df
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=15)
+@st.cache_data(ttl=30)
 def carregar_dados_azix():
     if aba_azix is None: return pd.DataFrame()
     try:
         df = pd.DataFrame(aba_azix.get_all_records())
         if 'Nº Pedido venda' in df.columns: df['Nº Pedido venda'] = df['Nº Pedido venda'].astype(str).str.replace(r'\.0$', '', regex=True)
+        if 'Status' in df.columns: df['Status'] = df['Status'].astype(str).str.strip()
+        return df
+    except: return pd.DataFrame()
+
+@st.cache_data(ttl=30)
+def carregar_dados_ativas():
+    if aba_ativas is None: return pd.DataFrame()
+    try:
+        df = pd.DataFrame(aba_ativas.get_all_records())
+        if 'Pedido' in df.columns: df['Pedido'] = df['Pedido'].astype(str).str.replace(r'\.0$', '', regex=True)
         if 'Status' in df.columns: df['Status'] = df['Status'].astype(str).str.strip()
         return df
     except: return pd.DataFrame()
@@ -181,7 +199,7 @@ def carregar_agenda_transp():
     try: return pd.DataFrame(aba_transp.get_all_records())
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=15)
+@st.cache_data(ttl=30)
 def carregar_logs_dia():
     if aba_logs is None: return pd.DataFrame()
     try:
@@ -293,17 +311,16 @@ else:
     # 🧠 ROTEAMENTO DE BASES
     df_qualitor = carregar_dados_chamados()
     df_azix_data = carregar_dados_azix()
+    df_ativas_data = carregar_dados_ativas() # <-- PUXA OS DADOS
     df_equipe = carregar_status_equipe()
-    
-    # PREPARA O SLA DO AZIX
-    if not df_azix_data.empty:
-        if 'Data_Entrada' not in df_azix_data.columns:
-            df_azix_data['Data_Entrada'] = data_hoje()
-        df_azix_data['Status_SLA'] = df_azix_data['Data_Entrada'].apply(calcular_sla_bizdays)
 
+    # Roteamento
     if usuario in SQUAD_AZIX or usuario in SQUAD_MKTP:
         df = df_azix_data
         aba_atual = aba_azix
+    elif usuario in SQUAD_ATIVAS: # <-- O NOVO DESVIO NO TRILHO
+        df = df_ativas_data
+        aba_atual = aba_ativas
     else:
         df = df_qualitor
         aba_atual = aba_chamados
@@ -507,7 +524,7 @@ else:
             df_logs['DataReal'] = pd.to_datetime(df_logs['DataHora'].str.split(' ').str[0], format="%d/%m/%Y", errors='coerce').dt.date
             df_logs_periodo = df_logs[(df_logs['DataReal'] >= data_inicio) & (df_logs['DataReal'] <= data_fim)].copy()
             
-            feitos_periodo = df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Finalizou|Encerrada|Concluiu Azix", case=False)]
+            feitos_periodo = df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Finalizou|Encerrada|Concluiu Azix|Concluiu Ativa", case=False)]
             if not feitos_periodo.empty:
                 ranking_periodo = feitos_periodo['Usuario'].value_counts().reset_index()
                 ranking_periodo.columns = ['Nome', 'Qtd']
@@ -663,7 +680,7 @@ else:
                 if qtd_qualitor_hoje < pessoas_necessarias:
                     st.error(f"⚠️ Risco de atraso! Faltam {int(pessoas_necessarias - qtd_qualitor_hoje)} operadores.")
                 else:
-                    st.success("✅ Equipa perfeitamente dimensionada para a fila!")
+                    st.success("✅ Equipe perfeitamente dimensionada para a fila!")
             elif pend_q == 0:
                 st.success("🎉 Fila Qualitor zerada!")
             else:
@@ -1160,6 +1177,98 @@ else:
                             registrar_log(usuario, f"Pegou Mktp ({num_pedido})") # Grava com o número!
                             st.cache_data.clear(); time.sleep(1); st.rerun()
                     else: st_autorefresh(interval=60000, key="refresh_mktp")
+
+# =========================================================================
+    # 🎯 SQUAD NOVO: ATIVAS E REIVINDICAÇÕES (MARKETPLACE)
+    # =========================================================================
+    elif usuario in SQUAD_ATIVAS:
+        st.title("Marketplace")
+        if status_real != "Disponivel": st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
+        else:
+            if df.empty or 'Status' not in df.columns:
+                st.info("📭 A base de dados Ativas está vazia.")
+                if st.button("🔄 Recarregar Fila"): st.cache_data.clear(); st.rerun()
+            else:
+                meu_chamado = df[(df['Status'] == 'Em Andamento') & (df['Responsavel'] == usuario)]
+                
+                # --- TELA DE ATENDIMENTO ---
+                if len(meu_chamado) > 0:
+                    dados = meu_chamado.iloc[0]
+                    idx_linha = int(meu_chamado.index[0]) + 2 
+                    num_pedido = dados.get('Pedido', 'N/A')
+                    tipo_atual = dados.get('Tipo_Atividade', 'N/A')
+                    prio_atual = dados.get('Prioridade', '')
+                    
+                    st.success(f"🟢 EM ATENDIMENTO ({tipo_atual}) - Prioridade {prio_atual}")
+                    st.markdown(f"### 📦 Pedido / ID: **{num_pedido}**")
+                    
+                    with st.container():
+                        st.markdown('<div style="background-color: #f8fafc; padding: 20px; border-radius: 10px; border-left: 5px solid #8b5cf6;">', unsafe_allow_html=True)
+                        for col in df.columns:
+                            if col not in ['ID', 'Status', 'Responsavel', 'Inicio', 'Data_Conclusao', 'Assentamentos']:
+                                val = dados.get(col, '')
+                                if pd.notna(val) and str(val).strip() != '': st.markdown(f"**{col}:** {val}")
+                        st.markdown('</div><br>', unsafe_allow_html=True)
+
+                    st.markdown("### 📝 Registrar Atendimento")
+                    historico_atual = str(dados.get('Assentamentos', ''))
+                    if historico_atual.strip() != '' and historico_atual != 'nan':
+                        st.info(historico_atual)
+                    
+                    novo_assentamento = st.text_area("Descreva a ação realizada:")
+
+                    st.write("---")
+                    if 'confirmar_ativa' not in st.session_state: st.session_state['confirmar_ativa'] = False
+                    
+                    if not st.session_state['confirmar_ativa']:
+                        if st.button("✅ CONCLUIR ATENDIMENTO", type="primary", use_container_width=True): st.session_state['confirmar_ativa'] = True; st.rerun()
+                    else:
+                        st.warning("Confirma a conclusão?")
+                        cy, cn = st.columns(2)
+                        if cy.button("👍 SIM"):
+                            if novo_assentamento:
+                                col_ass = df.columns.tolist().index('Assentamentos') + 1
+                                aba_atual.update_cell(idx_linha, col_ass, f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip())
+                            
+                            aba_atual.update_cell(idx_linha, COL_STATUS, "Concluido")
+                            aba_atual.update_cell(idx_linha, COL_FIM, hora_texto()) 
+                            registrar_log(usuario, f"Concluiu Ativa ({num_pedido})")
+                            verificar_meta_baloes(usuario, ranking_global, META_DIARIA)
+                            st.session_state['confirmar_ativa'] = False
+                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                        if cn.button("❌ NÃO"): st.session_state['confirmar_ativa'] = False; st.rerun()
+                
+                # --- TELA DE FILA LIVRE ---
+                else:
+                    fila = df[(df['Status'] == 'Pendente') & (df['Responsavel'] == "")].copy()
+                    
+                    # 1. Filtra pelo "Bolo" correto (Chat vs Reclamação) usando as Etapas_Permitidas
+                    if "Todas" not in minhas_etapas and "todas" not in [e.lower() for e in minhas_etapas]:
+                        if 'Tipo_Atividade' in fila.columns:
+                            fila = fila[fila['Tipo_Atividade'].astype(str).isin(minhas_etapas)]
+                    
+                    # 2. A MÁGICA DA PRIORIDADE (Organiza de 1 para cima)
+                    if 'Prioridade' in fila.columns:
+                        fila['Prioridade_Num'] = pd.to_numeric(fila['Prioridade'], errors='coerce').fillna(999)
+                        fila = fila.sort_values(by='Prioridade_Num', ascending=True)
+
+                    st.metric("🚨 Na Sua Fila", len(fila))
+                    if st.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
+                    
+                    if len(fila) > 0:
+                        if st.button("📥 PUXAR PRÓXIMO (PRIORIDADE)", type="primary", use_container_width=True):
+                            item = fila.iloc[0] # Pega sempre o topo da lista (Prioridade 1)
+                            idx_linha = int(item.name) + 2 
+                            num_pedido = str(item.get('Pedido', ''))
+                            
+                            aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento")
+                            aba_atual.update_cell(idx_linha, COL_RESP, usuario)
+                            aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())          
+                            registrar_log(usuario, f"Pegou Ativa ({num_pedido})") 
+                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                    else:
+                        st.success("Fila zerada para as suas habilidades!")
+                        st_autorefresh(interval=60000, key="refresh_ativas")
 
     # =========================================================================
     # 👷 SQUAD 3: VISÃO PADRÃO (OPERADOR QUALITOR)
