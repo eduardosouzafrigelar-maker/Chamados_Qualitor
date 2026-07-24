@@ -23,7 +23,7 @@ ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes", "eduardosouza", "biancam
 
 SQUAD_AZIX = ["charleneoliveira", "brunasouza2", "viniciosmarques2"] 
 SQUAD_MKTP = ["vitoriabraga", "fabiolapereira"] 
-SQUAD_ATIVAS = ["Ruan Athaide", "Camila Garcia", "Marlise Borges", "Daiane Habowski", "Yasmine Goulart", "Raissa Silva"]
+SQUAD_ATIVAS = ["Ruan Athaide", "Camila Garcia", "Marlise Borges", "Daiane Habowski", "Yasmine Goulart", "Raissa Silva", "Roger Santos"]
 
 # --- META DIÁRIA E CELEBRAÇÃO ---
 META_DIARIA = 50
@@ -518,6 +518,7 @@ else:
         azix_concluidos_periodo = 0
         azix_avancados_periodo = 0
         azix_devolvidos_periodo = 0
+        ativas_concluidos_periodo = 0
         importados_azix = 0
         
         if not df_logs.empty:
@@ -529,10 +530,11 @@ else:
                 ranking_periodo = feitos_periodo['Usuario'].value_counts().reset_index()
                 ranking_periodo.columns = ['Nome', 'Qtd']
                 
-            # Ler a história do Azix na Máquina do Tempo (Agora contando devoluções!)
+            # Ler a história nos Logs
             azix_concluidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Concluiu Azix", case=False)])
             azix_avancados_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Azix para Mktp", case=False)])
             azix_devolvidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Devolveu Azix", case=False)])
+            ativas_concluidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Concluiu Ativa", case=False)])
             
             # Soma os importados no período
             logs_importacao = df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Adicionou", case=False)]
@@ -550,9 +552,12 @@ else:
         pend_a = len(df_azix_data[df_azix_data['Status'].isin(['Pendente', 'Pendente - Retorno', 'Aguardando Reivindicação'])]) if not df_azix_data.empty else 0
         fora_sla_a = len(df_azix_data[(df_azix_data['Status'].isin(['Pendente', 'Pendente - Retorno', 'Aguardando Reivindicação'])) & (df_azix_data['Status_SLA'].astype(str).str.contains('Atrasado|Vence Hoje', case=False, na=False))]) if not df_azix_data.empty and 'Status_SLA' in df_azix_data.columns else 0
         
-        col1, col2, col3 = st.columns(3)
+        pend_ativas = len(df_ativas_data[df_ativas_data['Status'] == 'Pendente']) if not df_ativas_data.empty else 0
+        prio1_ativas = len(df_ativas_data[(df_ativas_data['Status'] == 'Pendente') & (df_ativas_data['Prioridade'].astype(str) == '1')]) if not df_ativas_data.empty and 'Prioridade' in df_ativas_data.columns else 0
+
+        col1, col2, col3, col4 = st.columns(4)
         col1.markdown(f"""
-        <div style='background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 5px solid #0284c7; margin-bottom: 20px;'>
+        <div style='background-color: #f0f9ff; padding: 15px; border-radius: 10px; border-left: 5px solid #0284c7; margin-bottom: 20px;'>
             <h4 style='color: #0369a1; margin-top:0;'>📦 Qualitor (SAC)</h4>
             <h2>{pend_q} <span style='font-size: 0.5em; font-weight: normal; color: gray;'>Pendentes</span></h2>
             <p style='color: #dc2626; margin-bottom:0;'>🔥 {fora_sla_q} Atrasados/Críticos</p>
@@ -560,33 +565,38 @@ else:
         """, unsafe_allow_html=True)
         
         col2.markdown(f"""
-        <div style='background-color: #fff7ed; padding: 20px; border-radius: 10px; border-left: 5px solid #d97706; margin-bottom: 20px;'>
-            <h4 style='color: #b45309; margin-top:0;'>🔶 Azix / Marketplace</h4>
-            <h2>{pend_a} <span style='font-size: 0.5em; font-weight: normal; color: gray;'>Pendentes Atuais</span></h2>
-            <p style='color: #dc2626; font-size: 0.9em; margin-bottom: 10px;'>🔥 {fora_sla_a} Atrasados/Críticos</p>
-            <div style='border-top: 1px solid #fde68a; padding-top: 10px; margin-top: 10px;'>
-                <p style='color: #92400e; margin:0; font-size: 0.85em;'><b>No Período Filtrado acima:</b></p>
-                <p style='color: #b45309; margin:0; font-size: 0.85em;'>📥 Importados p/ fila: <b>{importados_azix}</b></p>
-                <p style='color: #16a34a; margin:0; font-size: 0.85em;'>✅ Encerrados: <b>{azix_concluidos_periodo}</b></p>
-                <p style='color: #0284c7; margin:0; font-size: 0.85em;'>⏭️ Avançaram Etapa: <b>{azix_avancados_periodo}</b></p>
-            </div>
+        <div style='background-color: #fff7ed; padding: 15px; border-radius: 10px; border-left: 5px solid #d97706; margin-bottom: 20px;'>
+            <h4 style='color: #b45309; margin-top:0;'>🔶 Azix Tratativas</h4>
+            <h2>{pend_a} <span style='font-size: 0.5em; font-weight: normal; color: gray;'>Pendentes</span></h2>
+            <p style='color: #dc2626; margin-bottom:0;'>🔥 {fora_sla_a} Atrasados/Críticos</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col3.markdown(f"""
+        <div style='background-color: #faf5ff; padding: 15px; border-radius: 10px; border-left: 5px solid #8b5cf6; margin-bottom: 20px;'>
+            <h4 style='color: #6b21a8; margin-top:0;'>🎯 Ativas Mktp</h4>
+            <h2>{pend_ativas} <span style='font-size: 0.5em; font-weight: normal; color: gray;'>Pendentes</span></h2>
+            <p style='color: #dc2626; margin-bottom:0;'>🔥 {prio1_ativas} Prioridade 1</p>
+            <p style='color: #6b21a8; font-size: 0.8em; margin-top:5px; margin-bottom:0;'>✅ Concluídos no Período: <b>{ativas_concluidos_periodo}</b></p>
         </div>
         """, unsafe_allow_html=True)
         
         total_feitos_periodo = ranking_periodo['Qtd'].sum() if not ranking_periodo.empty else 0
-        col3.markdown(f"""
-        <div style='background-color: #f0fdf4; padding: 20px; border-radius: 10px; border-left: 5px solid #16a34a; margin-bottom: 20px;'>
-            <h4 style='color: #15803d; margin-top:0;'>✅ Produtividade (Período)</h4>
+        col4.markdown(f"""
+        <div style='background-color: #f0fdf4; padding: 15px; border-radius: 10px; border-left: 5px solid #16a34a; margin-bottom: 20px;'>
+            <h4 style='color: #15803d; margin-top:0;'>✅ Produtividade Geral</h4>
             <h2>{total_feitos_periodo} <span style='font-size: 0.5em; font-weight: normal; color: gray;'>Concluídos</span></h2>
             <p style='color: #16a34a; margin-bottom:0;'>De {data_inicio.strftime('%d/%m')} até {data_fim.strftime('%d/%m')}</p>
         </div>
         """, unsafe_allow_html=True)
-        
+
         c_graf1, c_graf2 = st.columns(2)
         with c_graf1:
-            st.markdown("**Status Atual da Operação (Qualitor + Azix)**")
+            st.markdown("**Status Atual da Operação (Qualitor + Azix + Ativas)**")
             if not df_qualitor.empty and not df_azix_data.empty:
                 status_comb = pd.concat([df_qualitor['Status'], df_azix_data['Status']])
+                if not df_ativas_data.empty:
+                    status_comb = pd.concat([status_comb, df_ativas_data['Status']])
                 st.bar_chart(status_comb.value_counts(), use_container_width=True)
             else: st.info("Sem dados")
         with c_graf2:
@@ -613,41 +623,43 @@ else:
         else:
             st.info("A base Qualitor está vazia ou sem a coluna 'Etapa'.")
 
-        # --- HEADCOUNT E DIMENSIONAMENTO (WFM) ---
+        # --- HEADCOUNT E DIMENSIONAMENTO (WFM SEPARADO E REFINADO) ---
         st.write("---")
         st.subheader("👥 Força de Trabalho e Dimensionamento (WFM)")
         
-        # 1. Calcular Headcount de Hoje pelos Logs
         hoje_str = data_hoje()
         logs_do_dia = df_logs[df_logs['DataHora'].astype(str).str.contains(hoje_str)] if not df_logs.empty else pd.DataFrame()
         
         qtd_azix_hoje = 0
         qtd_qualitor_hoje = 0
+        qtd_ativas_hoje = 0
         nomes_azix = ""
         nomes_qualitor = ""
+        nomes_ativas = ""
         
         if not logs_do_dia.empty:
             usuarios_logados = logs_do_dia['Usuario'].unique()
-            # Filtra os chefes e a TV para não "sujar" o headcount operacional
             ops_reais = [u for u in usuarios_logados if u not in ADMINS and u != "TV"]
             
-            # Conta quem é de qual Squad
+            # SEPARAÇÃO RÍGIDA DOS SQUADS
             ops_azix = [u for u in ops_reais if u in SQUAD_AZIX or u in SQUAD_MKTP]
-            ops_qualitor = [u for u in ops_reais if u not in SQUAD_AZIX and u not in SQUAD_MKTP]
+            ops_ativas = [u for u in ops_reais if u in SQUAD_ATIVAS]
+            ops_qualitor = [u for u in ops_reais if u not in SQUAD_AZIX and u not in SQUAD_MKTP and u not in SQUAD_ATIVAS]
             
             qtd_azix_hoje = len(ops_azix)
             qtd_qualitor_hoje = len(ops_qualitor)
+            qtd_ativas_hoje = len(ops_ativas)
             
-            # Prepara a lista de nomes formatada separada por vírgula
             nomes_azix = ", ".join(ops_azix) if qtd_azix_hoje > 0 else "Nenhum"
             nomes_qualitor = ", ".join(ops_qualitor) if qtd_qualitor_hoje > 0 else "Nenhum"
+            nomes_ativas = ", ".join(ops_ativas) if qtd_ativas_hoje > 0 else "Nenhum"
 
         c_wfm1, c_wfm2, c_wfm3 = st.columns(3)
         
         with c_wfm1:
             st.markdown(f"""
             <div style='background-color: #f0f9ff; padding: 15px; border-radius: 8px; border-left: 5px solid #0284c7; height: 100%;'>
-                <p style='margin:0; color: #0369a1; font-size: 0.9em;'>Operadores Qualitor (Atuaram Hoje):</p>
+                <p style='margin:0; color: #0369a1; font-size: 0.9em;'>Operadores Qualitor (Hoje):</p>
                 <h2 style='margin:0; color: #0f172a;'>👨‍💻 {qtd_qualitor_hoje}</h2>
                 <p style='margin-top:10px; font-size: 0.75em; color: #475569;'><b>Nomes:</b> {nomes_qualitor}</p>
             </div>
@@ -656,38 +668,71 @@ else:
         with c_wfm2:
             st.markdown(f"""
             <div style='background-color: #fff7ed; padding: 15px; border-radius: 8px; border-left: 5px solid #d97706; height: 100%;'>
-                <p style='margin:0; color: #b45309; font-size: 0.9em;'>Operadores Azix/Mktp (Atuaram Hoje):</p>
+                <p style='margin:0; color: #b45309; font-size: 0.9em;'>Operadores Azix/Mktp (Hoje):</p>
                 <h2 style='margin:0; color: #0f172a;'>👨‍💻 {qtd_azix_hoje}</h2>
                 <p style='margin-top:10px; font-size: 0.75em; color: #475569;'><b>Nomes:</b> {nomes_azix}</p>
             </div>
             """, unsafe_allow_html=True)
-        
+
         with c_wfm3:
-            st.markdown("<p style='margin:0; color: #475569; font-weight: bold;'>⏱️ Calculadora Qualitor</p>", unsafe_allow_html=True)
-            col_tma, col_hora = st.columns(2)
-            tma_minutos = col_tma.number_input("TMA (min):", min_value=1, value=8)
-            hora_fim = col_hora.time_input("Fim Turno:", value=datetime.strptime("18:00", "%H:%M").time())
+            st.markdown(f"""
+            <div style='background-color: #faf5ff; padding: 15px; border-radius: 8px; border-left: 5px solid #8b5cf6; height: 100%;'>
+                <p style='margin:0; color: #6b21a8; font-size: 0.9em;'>Operadores Ativas Mktp (Hoje):</p>
+                <h2 style='margin:0; color: #0f172a;'>👨‍💻 {qtd_ativas_hoje}</h2>
+                <p style='margin-top:10px; font-size: 0.75em; color: #475569;'><b>Nomes:</b> {nomes_ativas}</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.write("")
+        st.markdown("### ⏱️ Calculadoras de Dimensionamento (WFM)")
+        col_calc1, col_calc2 = st.columns(2)
+
+        # 1. CALCULADORA QUALITOR
+        with col_calc1:
+            st.markdown("<div style='background-color: #f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;'>", unsafe_allow_html=True)
+            st.markdown("<p style='margin:0; color: #0284c7; font-weight: bold;'>🔷 Calculadora Qualitor (SAC)</p>", unsafe_allow_html=True)
+            col_tq, col_hq = st.columns(2)
+            tma_q = col_tq.number_input("TMA Qualitor (min):", min_value=1, value=8, key="tma_q")
+            hora_fim_q = col_hq.time_input("Fim Turno Qualitor:", value=datetime.strptime("18:00", "%H:%M").time(), key="hf_q")
             
             agora = hora_brasil()
-            fim_expediente_dt = agora.replace(hour=hora_fim.hour, minute=hora_fim.minute, second=0, microsecond=0)
-            minutos_restantes = int((fim_expediente_dt - agora).total_seconds() / 60)
+            fim_q_dt = agora.replace(hour=hora_fim_q.hour, minute=hora_fim_q.minute, second=0, microsecond=0)
+            minutos_q = int((fim_q_dt - agora).total_seconds() / 60)
             
-            if minutos_restantes > 0 and pend_q > 0:
-                pessoas_necessarias = np.ceil((pend_q * tma_minutos) / minutos_restantes)
-                st.info(f"**Ideal:** {int(pessoas_necessarias)} pessoas para zerar a fila hoje.")
-                
-                # O Cérebro Mágico: Compara quem você tem hoje com quem você precisa!
-                if qtd_qualitor_hoje < pessoas_necessarias:
-                    st.error(f"⚠️ Risco de atraso! Faltam {int(pessoas_necessarias - qtd_qualitor_hoje)} operadores.")
+            if minutos_q > 0 and pend_q > 0:
+                p_necessarias_q = np.ceil((pend_q * tma_q) / minutos_q)
+                st.info(f"**Ideal:** {int(p_necessarias_q)} operadores p/ zerar {pend_q} chamados.")
+                if qtd_qualitor_hoje < p_necessarias_q:
+                    st.error(f"⚠️ Faltam {int(p_necessarias_q - qtd_qualitor_hoje)} operadores no Qualitor!")
                 else:
-                    st.success("✅ Equipe perfeitamente dimensionada para a fila!")
-            elif pend_q == 0:
-                st.success("🎉 Fila Qualitor zerada!")
-            else:
-                st.error("⏰ Expediente encerrado.")
+                    st.success("✅ Equipe Qualitor dimensionada corretamente!")
+            elif pend_q == 0: st.success("🎉 Fila Qualitor zerada!")
+            else: st.error("⏰ Expediente encerrado.")
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        
-            # --- NOVA VISUALIZAÇÃO: MÉTRICAS DE VALIDAÇÃO DA RECEITA (AZIX) ---
+        # 2. CALCULADORA ATIVAS MKTP
+        with col_calc2:
+            st.markdown("<div style='background-color: #f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;'>", unsafe_allow_html=True)
+            st.markdown("<p style='margin:0; color: #8b5cf6; font-weight: bold;'>🎯 Calculadora Ativas Mktp</p>", unsafe_allow_html=True)
+            col_ta, col_ha = st.columns(2)
+            tma_a = col_ta.number_input("TMA Ativas (min):", min_value=1, value=5, key="tma_a")
+            hora_fim_a = col_ha.time_input("Fim Turno Ativas:", value=datetime.strptime("18:00", "%H:%M").time(), key="hf_a")
+            
+            fim_a_dt = agora.replace(hour=hora_fim_a.hour, minute=hora_fim_a.minute, second=0, microsecond=0)
+            minutos_a = int((fim_a_dt - agora).total_seconds() / 60)
+            
+            if minutos_a > 0 and pend_ativas > 0:
+                p_necessarias_a = np.ceil((pend_ativas * tma_a) / minutos_a)
+                st.info(f"**Ideal:** {int(p_necessarias_a)} operadores p/ zerar {pend_ativas} pedidos.")
+                if qtd_ativas_hoje < p_necessarias_a:
+                    st.error(f"⚠️ Faltam {int(p_necessarias_a - qtd_ativas_hoje)} operadores nas Ativas!")
+                else:
+                    st.success("✅ Equipe Ativas dimensionada corretamente!")
+            elif pend_ativas == 0: st.success("🎉 Fila Ativas zerada!")
+            else: st.error("⏰ Expediente encerrado.")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # --- NOVA VISUALIZAÇÃO: MÉTRICAS DE VALIDAÇÃO DA RECEITA (AZIX) ---
         st.write("---")
         st.markdown("### 🏛️ Validação de Endereço na Receita (Azix)")
         
@@ -725,7 +770,6 @@ else:
         else:
             st.info("Aguardando as primeiras validações da equipa ou a coluna 'Validacao_Receita' ainda não foi lida na base.")
 
-        # --- EXPORTAÇÃO COMPLETA COM FILTRO ---
         # --- EXPORTAÇÃO COMPLETA COM FILTRO ---
         st.write("---")
         st.subheader("💾 Exportação de Bases e Auditoria")
@@ -833,13 +877,6 @@ else:
                             if 'Lista' in df_filtrado.columns:
                                 is_prio = df_filtrado['Lista'].astype(str).str.upper().str.contains("PRIORIDADE 1", na=False)
                                 df_filtrado.loc[is_prio & ~is_mktp, 'Etapa_Limpa'] = "Prioridade"
-                            
-                            df_novo = pd.DataFrame()
-                            df_novo['ID'] = ""; df_novo['Dados'] = df_filtrado['Chamado'].astype(str).str.replace(r'\.0$', '', regex=True); df_novo['Status'] = "Pendente"; df_novo['Etapa'] = df_filtrado['Etapa_Limpa']; df_novo['SLA'] = df_filtrado['SLA_Final']; df_novo['Responsavel'] = ""; df_novo['Inicio'] = ""; df_novo['Data_Conclusao'] = "" 
-                            df_pronto = df_novo.drop_duplicates(subset=['Dados'])
-                            
-                            def def_prioridade(linha): return "🔥 Prioridade (Vence Hoje)" if "PRIORIDADE 1" in str(linha).upper() else "Normal ✅"
-                            df_filtrado['SLA_Final'] = df_filtrado['Lista'].apply(def_prioridade) if 'Lista' in df_filtrado.columns else "Normal ✅"
                             
                             df_novo = pd.DataFrame()
                             df_novo['ID'] = ""; df_novo['Dados'] = df_filtrado['Chamado'].astype(str).str.replace(r'\.0$', '', regex=True); df_novo['Status'] = "Pendente"; df_novo['Etapa'] = df_filtrado['Etapa_Limpa']; df_novo['SLA'] = df_filtrado['SLA_Final']; df_novo['Responsavel'] = ""; df_novo['Inicio'] = ""; df_novo['Data_Conclusao'] = "" 
