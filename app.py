@@ -155,7 +155,7 @@ def registrar_log(usuario, acao):
     try: aba_logs.append_row([usuario, acao, hora_texto()])
     except: pass
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=30, max_entries=2)
 def carregar_dados_chamados():
     try:
         df = pd.DataFrame(aba_chamados.get_all_records())
@@ -164,7 +164,7 @@ def carregar_dados_chamados():
         return df
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=30, max_entries=2)
 def carregar_dados_azix():
     if aba_azix is None: return pd.DataFrame()
     try:
@@ -174,7 +174,7 @@ def carregar_dados_azix():
         return df
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=30, max_entries=2)
 def carregar_dados_ativas():
     if aba_ativas is None: return pd.DataFrame()
     try:
@@ -184,7 +184,7 @@ def carregar_dados_ativas():
         return df
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=30, max_entries=2)
 def carregar_status_equipe():
     try:
         dados = aba_users.get_all_values()
@@ -193,13 +193,13 @@ def carregar_status_equipe():
         return df.loc[:, df.columns != ''] 
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=3600) 
+@st.cache_data(ttl=3600, max_entries=2) 
 def carregar_agenda_transp():
     if aba_transp is None: return pd.DataFrame()
     try: return pd.DataFrame(aba_transp.get_all_records())
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=30, max_entries=2)
 def carregar_logs_dia():
     if aba_logs is None: return pd.DataFrame()
     try:
@@ -208,7 +208,7 @@ def carregar_logs_dia():
         if dados[0][0].lower() in ['usuario', 'nome', 'operador']: return pd.DataFrame(dados[1:], columns=["Usuario", "Acao", "DataHora"])
         else: return pd.DataFrame(dados, columns=["Usuario", "Acao", "DataHora"])
     except: return pd.DataFrame()
-
+        
 def ler_mural():
     try:
         with open("mural.txt", "r", encoding="utf-8") as f: return f.read().strip()
