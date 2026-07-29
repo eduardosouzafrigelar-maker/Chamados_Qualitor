@@ -227,7 +227,7 @@ ranking_global = pd.DataFrame()
 if not df_logs_global.empty:
     hoje = data_hoje()
     logs_hoje = df_logs_global[df_logs_global['DataHora'].astype(str).str.contains(hoje)]
-    feitos_logs = logs_hoje[logs_hoje['Acao'].astype(str).str.contains("Finalizou|Encerrada", case=False)]
+    feitos_logs = logs_hoje[logs_hoje['Acao'].astype(str).str.contains("Finalizou|Encerrada|Concluiu Azix|Concluiu Ativa|Reivindicação Encerrada", case=False)]
     if not feitos_logs.empty:
         ranking_global = feitos_logs['Usuario'].value_counts().reset_index()
         ranking_global.columns = ['Nome', 'Qtd']
