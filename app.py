@@ -23,7 +23,7 @@ ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes", "eduardosouza", "biancam
 
 SQUAD_AZIX = ["charleneoliveira", "brunasouza2", "viniciosmarques2"] 
 SQUAD_MKTP = ["vitoriabraga", "fabiolapereira"] 
-SQUAD_ATIVAS = ["Ruan Athaide", "Camila Garcia", "Marlise Borges", "Daiane Habowski", "Yasmine Goulart", "Raissa Silva", "Roger Santos", "Bianca Brasil", "Andressa Marchaki", "Viviane Santos", "Joice Machado", "Gabriel Battistelli", "Alex Alves", "Franscielle Leal", "Sophie Barbosa"]
+SQUAD_ATIVAS = ["Ruan Athaide", "Camila Garcia", "Marlise Borges", "Daiane Habowski", "Yasmine Goulart", "Raissa Silva", "Roger Santos", "Bianca Brasil", "Andressa Marchaki", "Viviane Santos", "Joice Machado", "Endrio Silva", "Alex Alves", "Franscielle Leal", "Sophie Barbosa"]
 
 # --- META DIÁRIA E CELEBRAÇÃO ---
 META_DIARIA = 50
