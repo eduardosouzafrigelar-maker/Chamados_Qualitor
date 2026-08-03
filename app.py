@@ -14,22 +14,30 @@ import unicodedata
 import base64
 import numpy as np
 import re
-from google.cloud import firestore
-import google.oauth2.service_account
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 # =========================================================================
-# 🔥 CONEXÃO COM O FIREBASE (PARA OS LOGS LEVES)
+# 🔥 CONEXÃO BLINDADA COM O FIREBASE (FIREBASE-ADMIN)
 # =========================================================================
 @st.cache_resource
 def conectar_firebase():
     try:
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        credentials = google.oauth2.service_account.Credentials.from_service_account_info(creds_dict)
-        db = firestore.Client(credentials=credentials, project=credentials.project_id)
-        return db
+        # Verifica se a app já está iniciada para não dar erro de duplicação
+        if not firebase_admin._apps:
+            # Transforma os secrets do Streamlit num dicionário Python
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            # Injeta as credenciais no Firebase
+            cred = credentials.Certificate(creds_dict)
+            firebase_admin.initialize_app(cred)
+            
+        # Retorna o cliente do Firestore
+        return firestore.client()
     except Exception as e:
+        st.error(f"Erro Crítico ao iniciar o Firebase: {e}")
         return None
 
+# Tenta ligar logo na largada do aplicativo
 db = conectar_firebase()
 
 # =========================================================================
@@ -203,18 +211,23 @@ if aba_chamados is None: st.error("Erro ao carregar abas principais."); st.stop(
 def registrar_log(usuario, acao):
     try:
         if db is not None:
-            db.collection('logs_qualitor').add({
+            # Usa set para forçar a criação com um ID baseado no tempo para garantir a ordem
+            log_id = str(int(time.time() * 1000)) 
+            db.collection('logs_qualitor').document(log_id).set({
                 "Usuario": str(usuario),
                 "Acao": str(acao),
                 "DataHora": hora_texto()
             })
-    except: pass
+    except Exception as e: 
+        # Trocamos o pass por um print no console do Streamlit para você ver o erro lá se falhar
+        print(f"Erro na gravação do log: {e}")
 
 @st.cache_data(ttl=60, max_entries=2) 
 def carregar_logs_dia():
     if db is None: 
         return pd.DataFrame(columns=["Usuario", "Acao", "DataHora"])
     try:
+        # Lê os documentos
         docs = db.collection('logs_qualitor').stream()
         lista_logs = [doc.to_dict() for doc in docs]
         
@@ -228,9 +241,9 @@ def carregar_logs_dia():
         df = df[["Usuario", "Acao", "DataHora"]]
         df = df.replace('', pd.NA).dropna(how='all').fillna('')
         return df
-    except:
+    except Exception as e:
+        print(f"Erro na leitura dos logs: {e}")
         return pd.DataFrame(columns=["Usuario", "Acao", "DataHora"])
-
 
 # =========================================================================
 # 🔄 MOTORES DE DADOS (COM CADEADO DE MEMÓRIA - BLINDAGEM MÁXIMA)
