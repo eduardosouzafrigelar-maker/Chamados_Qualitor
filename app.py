@@ -188,6 +188,11 @@ def registrar_log(usuario, acao):
     try: aba_logs.append_row([usuario, acao, hora_texto()])
     except: pass
 
+# =========================================================================
+# 🔄 MOTORES DE DADOS (COM CACHE INTELIGENTE)
+# =========================================================================
+
+# 1. Filas de Atendimento (Rápido: 30 segundos)
 @st.cache_data(ttl=30, max_entries=2)
 def carregar_dados_chamados():
     try:
@@ -217,7 +222,7 @@ def carregar_dados_ativas():
         return df
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=30, max_entries=2)
+@st.cache_data(ttl=60, max_entries=2) # 1 Minuto para a Equipe
 def carregar_status_equipe():
     try:
         dados = aba_users.get_all_values()
@@ -226,13 +231,16 @@ def carregar_status_equipe():
         return df.loc[:, df.columns != ''] 
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=3600, max_entries=2) 
+@st.cache_data(ttl=3600, max_entries=2) # Agenda muda pouco (1 hora)
 def carregar_agenda_transp():
     if aba_transp is None: return pd.DataFrame()
     try: return pd.DataFrame(aba_transp.get_all_records())
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=30, max_entries=2)
+# =========================================================================
+# 🚨 A SALVAÇÃO DA MEMÓRIA RAM: LOGS E TMA (LENTO: 5 MINUTOS / 300 Segundos)
+# =========================================================================
+@st.cache_data(ttl=300, max_entries=2) 
 def carregar_logs_dia():
     if aba_logs is None: return pd.DataFrame()
     try:
