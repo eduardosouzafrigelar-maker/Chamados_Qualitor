@@ -18,27 +18,34 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 # =========================================================================
-# 🔥 CONEXÃO BLINDADA COM O FIREBASE (FIREBASE-ADMIN)
+# 🔥 CONEXÃO BLINDADA COM O FIREBASE (À PROVA DE CACHE E FALHAS)
 # =========================================================================
 @st.cache_resource
-def conectar_firebase():
+def iniciar_banco_firebase():
     try:
-        # Lê o dicionário de secrets que você criou
-        creds_dict = dict(st.secrets["firebase"])
+        # Puxa a chave correta e conserta o texto caso o Streamlit o quebre
+        creds_dict = {k: v for k, v in st.secrets["firebase"].items()}
+        if "private_key" in creds_dict:
+            creds_dict["private_key"] = creds_dict["private_key"].replace('\\n', '\n')
         
-        # Garante que o firebase_admin não crie instâncias duplicadas
+        # Inicia a aplicação se ainda não existir
         if not firebase_admin._apps:
             cred = credentials.Certificate(creds_dict)
             firebase_admin.initialize_app(cred)
             
-        # O PULO DO GATO: Forçamos a biblioteca do firestore a usar o project_id EXATO do seu secret novo
-        return firestore.client(project=creds_dict["project_id"])
-        
+        # Retorna o motor do banco de dados
+        return firestore.client()
     except Exception as e:
-        print(f"Erro Crítico ao iniciar o Firebase: {e}")
-        return None
+        return f"ERRO: {str(e)}"
 
-db = conectar_firebase()
+# Variável inteligente que mostra o erro na tela caso falhe
+db_resultado = iniciar_banco_firebase()
+
+if isinstance(db_resultado, str):
+    st.error(f"🚨 Falha na conexão com o Firebase: {db_resultado}")
+    db = None
+else:
+    db = db_resultado
 
 # =========================================================================
 # 🛡️ AIRBAG ANTI-QUOTA DO GOOGLE (O SALVA-FÉRIAS) - VERSÃO MAX
