@@ -189,14 +189,24 @@ def registrar_log(usuario, acao):
     except: pass
 
 # =========================================================================
-# 🔄 MOTORES DE DADOS (COM CACHE INTELIGENTE)
+# 🔄 MOTORES DE DADOS (COM CADEADO DE MEMÓRIA - BLINDAGEM MÁXIMA)
 # =========================================================================
 
 # 1. Filas de Atendimento (Rápido: 30 segundos)
 @st.cache_data(ttl=30, max_entries=2)
 def carregar_dados_chamados():
     try:
-        df = pd.DataFrame(aba_chamados.get_all_records())
+        # 🛑 CADEADO: Puxa só até a linha 2000! Ignora o lixo invisível do Google.
+        dados = aba_chamados.get('A1:AZ2000') 
+        if not dados or len(dados) < 2: return pd.DataFrame()
+        
+        df = pd.DataFrame(dados)
+        df.columns = df.iloc[0].astype(str) # Transforma a 1ª linha em cabeçalho
+        df = df[1:].reset_index(drop=True)
+        
+        df = df.loc[:, df.columns != ''] 
+        df = df.replace('', pd.NA).dropna(how='all').fillna('')
+        
         if 'Dados' in df.columns: df['Dados'] = df['Dados'].astype(str).str.replace(r'\.0$', '', regex=True)
         if 'Status' in df.columns: df['Status'] = df['Status'].astype(str).str.strip()
         return df
@@ -206,7 +216,16 @@ def carregar_dados_chamados():
 def carregar_dados_azix():
     if aba_azix is None: return pd.DataFrame()
     try:
-        df = pd.DataFrame(aba_azix.get_all_records())
+        dados = aba_azix.get('A1:AZ2000') # 🛑 CADEADO 2000 LINHAS
+        if not dados or len(dados) < 2: return pd.DataFrame()
+        
+        df = pd.DataFrame(dados)
+        df.columns = df.iloc[0].astype(str)
+        df = df[1:].reset_index(drop=True)
+        
+        df = df.loc[:, df.columns != ''] 
+        df = df.replace('', pd.NA).dropna(how='all').fillna('')
+        
         if 'Nº Pedido venda' in df.columns: df['Nº Pedido venda'] = df['Nº Pedido venda'].astype(str).str.replace(r'\.0$', '', regex=True)
         if 'Status' in df.columns: df['Status'] = df['Status'].astype(str).str.strip()
         return df
@@ -216,7 +235,16 @@ def carregar_dados_azix():
 def carregar_dados_ativas():
     if aba_ativas is None: return pd.DataFrame()
     try:
-        df = pd.DataFrame(aba_ativas.get_all_records())
+        dados = aba_ativas.get('A1:AZ2000') # 🛑 CADEADO 2000 LINHAS
+        if not dados or len(dados) < 2: return pd.DataFrame()
+        
+        df = pd.DataFrame(dados)
+        df.columns = df.iloc[0].astype(str)
+        df = df[1:].reset_index(drop=True)
+        
+        df = df.loc[:, df.columns != ''] 
+        df = df.replace('', pd.NA).dropna(how='all').fillna('')
+        
         if 'Pedido' in df.columns: df['Pedido'] = df['Pedido'].astype(str).str.replace(r'\.0$', '', regex=True)
         if 'Status' in df.columns: df['Status'] = df['Status'].astype(str).str.strip()
         return df
@@ -225,9 +253,12 @@ def carregar_dados_ativas():
 @st.cache_data(ttl=60, max_entries=2) # 1 Minuto para a Equipe
 def carregar_status_equipe():
     try:
-        dados = aba_users.get_all_values()
-        if not dados: return pd.DataFrame()
-        df = pd.DataFrame(dados[1:], columns=dados[0])
+        dados = aba_users.get('A1:Z500')
+        if not dados or len(dados) < 2: return pd.DataFrame()
+        
+        df = pd.DataFrame(dados)
+        df.columns = df.iloc[0].astype(str)
+        df = df[1:].reset_index(drop=True)
         return df.loc[:, df.columns != ''] 
     except: return pd.DataFrame()
 
@@ -244,19 +275,24 @@ def carregar_agenda_transp():
 def carregar_logs_dia():
     if aba_logs is None: return pd.DataFrame()
     try:
-        # 🛑 PUXA APENAS AS COLUNAS A, B e C! Corta 90% do lixo invisível.
-        dados = aba_logs.get_values('A:C')
+        # 🛑 CADEADO EXTREMO: Puxa SÓ colunas A, B, C e no MÁXIMO 8.000 linhas
+        dados = aba_logs.get('A1:C8000')
         if not dados or len(dados) < 2: return pd.DataFrame()
         
-        # Pula a primeira linha (cabeçalho) e força o nome certo
-        df = pd.DataFrame(dados[1:], columns=["Usuario", "Acao", "DataHora"])
+        df = pd.DataFrame(dados)
+        # Garante que não dá erro se faltar alguma coluna na ponta
+        for i in range(len(df.columns), 3): df[i] = ""
+        df = df.iloc[:, :3]
+        df.columns = ["Usuario", "Acao", "DataHora"]
         
-        # 🛑 ASPIRADOR DE PÓ MÁXIMO (Extermina linhas totalmente vazias na mesma hora)
+        # Pula o cabeçalho original se existir
+        if str(df['Usuario'].iloc[0]).lower() in ['usuario', 'nome', 'operador', 'usuário']:
+            df = df[1:].reset_index(drop=True)
+            
         df = df.replace('', pd.NA).dropna(how='all').fillna('')
-        
         return df
     except Exception as e:
-        print(f"Erro oculto ao carregar logs: {e}")
+        print(f"Erro ao carregar logs: {e}")
         return pd.DataFrame()
         
 def ler_mural():
