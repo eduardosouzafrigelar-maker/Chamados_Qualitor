@@ -14,6 +14,23 @@ import unicodedata
 import base64
 import numpy as np
 import re
+from google.cloud import firestore
+import google.oauth2.service_account
+
+# =========================================================================
+# 🔥 CONEXÃO COM O FIREBASE (PARA OS LOGS LEVES)
+# =========================================================================
+@st.cache_resource
+def conectar_firebase():
+    try:
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        credentials = google.oauth2.service_account.Credentials.from_service_account_info(creds_dict)
+        db = firestore.Client(credentials=credentials, project=credentials.project_id)
+        return db
+    except Exception as e:
+        return None
+
+db = conectar_firebase()
 
 # =========================================================================
 # 🛡️ AIRBAG ANTI-QUOTA DO GOOGLE (O SALVA-FÉRIAS) - VERSÃO MAX
@@ -22,12 +39,12 @@ original_update_cell = gspread.worksheet.Worksheet.update_cell
 original_append_row = gspread.worksheet.Worksheet.append_row
 
 def blindagem_update_cell(self, row, col, val):
-    for tentativa in range(12): # 🔄 Aumentamos para 12 tentativas!
+    for tentativa in range(12): 
         try:
             return original_update_cell(self, row, col, val)
         except Exception as e:
             if "429" in str(e) or "Quota" in str(e) or "quota" in str(e).lower():
-                time.sleep(8) # ⏳ Espera 8 segundos (até 96s no total, vencendo a trava de 1 minuto do Google)
+                time.sleep(8) 
             else:
                 raise e
     return original_update_cell(self, row, col, val)
@@ -43,7 +60,6 @@ def blindagem_append_row(self, values, **kwargs):
                 raise e
     return original_append_row(self, values, **kwargs)
 
-# Substitui as funções originais do sistema pelas funções blindadas
 gspread.worksheet.Worksheet.update_cell = blindagem_update_cell
 gspread.worksheet.Worksheet.append_row = blindagem_append_row
 # =========================================================================
@@ -114,7 +130,6 @@ def conectar_e_abrir_abas():
                 creds_dict = st.secrets["gcp_service_account"]
                 client = gspread.service_account_from_dict(creds_dict)
             except:
-                # ADICIONADO MAIS UM 'None' AQUI PARA FECHAR 7 ELEMENTOS
                 return "🚨 ERRO: Credenciais não encontradas.", None, None, None, None, None, None
         
         erro_real = ""
@@ -130,17 +145,14 @@ def conectar_e_abrir_abas():
                     aba_azix = abas[4] if len(abas) > 4 else None 
                     aba_ativas = abas[5] if len(abas) > 5 else None 
                     
-                    # 7 ELEMENTOS SENDO RETORNADOS CORRETAMENTE:
                     return sh, aba_chamados, aba_users, aba_logs, aba_transp, aba_azix, aba_ativas
                 else: erro_real = "A planilha tem menos de 2 abas visíveis."
             except Exception as e:
                 erro_real = str(e)
                 time.sleep(2 + tentativa)
                 
-        # ADICIONADO MAIS UM 'None' AQUI
         return f"Falha após 10 tentativas. Erro: {erro_real}", None, None, None, None, None, None
     except Exception as e:
-        # ADICIONADO MAIS UM 'None' AQUI
         return f"Erro Crítico: {str(e)}", None, None, None, None, None, None
 
 # --- FUNÇÕES DE TEMPO E SLA ---
@@ -184,24 +196,55 @@ sh, aba_chamados, aba_users, aba_logs, aba_transp, aba_azix, aba_ativas = conect
 if isinstance(sh, str): st.error(f"Erro de conexão: {sh}"); st.stop()
 if aba_chamados is None: st.error("Erro ao carregar abas principais."); st.stop()
 
+
+# =========================================================================
+# 🔥 REGISTRO DE LOGS NO FIREBASE (ZERO PESO NA MEMÓRIA)
+# =========================================================================
 def registrar_log(usuario, acao):
-    try: aba_logs.append_row([usuario, acao, hora_texto()])
+    try:
+        if db is not None:
+            db.collection('logs_qualitor').add({
+                "Usuario": str(usuario),
+                "Acao": str(acao),
+                "DataHora": hora_texto()
+            })
     except: pass
+
+@st.cache_data(ttl=60, max_entries=2) 
+def carregar_logs_dia():
+    if db is None: 
+        return pd.DataFrame(columns=["Usuario", "Acao", "DataHora"])
+    try:
+        docs = db.collection('logs_qualitor').stream()
+        lista_logs = [doc.to_dict() for doc in docs]
+        
+        if not lista_logs: 
+            return pd.DataFrame(columns=["Usuario", "Acao", "DataHora"])
+            
+        df = pd.DataFrame(lista_logs)
+        for col in ["Usuario", "Acao", "DataHora"]:
+            if col not in df.columns: df[col] = ""
+                
+        df = df[["Usuario", "Acao", "DataHora"]]
+        df = df.replace('', pd.NA).dropna(how='all').fillna('')
+        return df
+    except:
+        return pd.DataFrame(columns=["Usuario", "Acao", "DataHora"])
+
 
 # =========================================================================
 # 🔄 MOTORES DE DADOS (COM CADEADO DE MEMÓRIA - BLINDAGEM MÁXIMA)
 # =========================================================================
 
-# 1. Filas de Atendimento (Rápido: 30 segundos)
+# 1. Filas de Atendimento (Rápido: 120 segundos)
 @st.cache_data(ttl=120, max_entries=2)
 def carregar_dados_chamados():
     try:
-        # 🛑 CADEADO: Puxa só até a linha 2000! Ignora o lixo invisível do Google.
         dados = aba_chamados.get('A1:AZ2000') 
         if not dados or len(dados) < 2: return pd.DataFrame()
         
         df = pd.DataFrame(dados)
-        df.columns = df.iloc[0].astype(str) # Transforma a 1ª linha em cabeçalho
+        df.columns = df.iloc[0].astype(str) 
         df = df[1:].reset_index(drop=True)
         
         df = df.loc[:, df.columns != ''] 
@@ -216,7 +259,7 @@ def carregar_dados_chamados():
 def carregar_dados_azix():
     if aba_azix is None: return pd.DataFrame()
     try:
-        dados = aba_azix.get('A1:AZ2000') # 🛑 CADEADO 2000 LINHAS
+        dados = aba_azix.get('A1:AZ2000') 
         if not dados or len(dados) < 2: return pd.DataFrame()
         
         df = pd.DataFrame(dados)
@@ -235,7 +278,7 @@ def carregar_dados_azix():
 def carregar_dados_ativas():
     if aba_ativas is None: return pd.DataFrame()
     try:
-        dados = aba_ativas.get('A1:AZ2000') # 🛑 CADEADO 2000 LINHAS
+        dados = aba_ativas.get('A1:AZ2000') 
         if not dados or len(dados) < 2: return pd.DataFrame()
         
         df = pd.DataFrame(dados)
@@ -250,7 +293,7 @@ def carregar_dados_ativas():
         return df
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=120, max_entries=2) # 1 Minuto para a Equipe
+@st.cache_data(ttl=120, max_entries=2) 
 def carregar_status_equipe():
     try:
         dados = aba_users.get('A1:Z500')
@@ -262,39 +305,12 @@ def carregar_status_equipe():
         return df.loc[:, df.columns != ''] 
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=3600, max_entries=2) # Agenda muda pouco (1 hora)
+@st.cache_data(ttl=3600, max_entries=2) 
 def carregar_agenda_transp():
     if aba_transp is None: return pd.DataFrame()
     try: return pd.DataFrame(aba_transp.get_all_records())
     except: return pd.DataFrame()
 
-# =========================================================================
-# 🚨 A SALVAÇÃO DA MEMÓRIA RAM: LOGS E TMA (LENTO: 5 MINUTOS / 300 Segundos)
-# =========================================================================
-@st.cache_data(ttl=300, max_entries=2) 
-def carregar_logs_dia():
-    if aba_logs is None: return pd.DataFrame()
-    try:
-        # 🛑 CADEADO EXTREMO: Puxa SÓ colunas A, B, C e no MÁXIMO 8.000 linhas
-        dados = aba_logs.get('A1:C8000')
-        if not dados or len(dados) < 2: return pd.DataFrame()
-        
-        df = pd.DataFrame(dados)
-        # Garante que não dá erro se faltar alguma coluna na ponta
-        for i in range(len(df.columns), 3): df[i] = ""
-        df = df.iloc[:, :3]
-        df.columns = ["Usuario", "Acao", "DataHora"]
-        
-        # Pula o cabeçalho original se existir
-        if str(df['Usuario'].iloc[0]).lower() in ['usuario', 'nome', 'operador', 'usuário']:
-            df = df[1:].reset_index(drop=True)
-            
-        df = df.replace('', pd.NA).dropna(how='all').fillna('')
-        return df
-    except Exception as e:
-        print(f"Erro ao carregar logs: {e}")
-        return pd.DataFrame()
-        
 def ler_mural():
     try:
         with open("mural.txt", "r", encoding="utf-8") as f: return f.read().strip()
@@ -1269,7 +1285,7 @@ else:
                                 num_pedido = str(item.get('Nº Pedido venda', ''))
                                 aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento")
                                 aba_atual.update_cell(idx_linha, COL_RESP, usuario)
-                                aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())          
+                                aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())         
                                 registrar_log(usuario, f"Pegou Pedido Azix ({num_pedido})")
                                 st.cache_data.clear(); time.sleep(1); st.rerun()
                         else: st_autorefresh(interval=60000, key="refresh_azix_novos")
@@ -1288,7 +1304,7 @@ else:
                                 num_pedido = str(item.get('Nº Pedido venda', ''))
                                 aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento")
                                 aba_atual.update_cell(idx_linha, COL_RESP, usuario)
-                                aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())          
+                                aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())         
                                 registrar_log(usuario, f"Pegou Retorno Azix ({num_pedido})")
                                 st.cache_data.clear(); time.sleep(1); st.rerun()
                         else: st_autorefresh(interval=60000, key="refresh_azix")
@@ -1382,12 +1398,12 @@ else:
                             
                             aba_atual.update_cell(idx_linha, COL_STATUS, "Em Tratativa Mktp")
                             aba_atual.update_cell(idx_linha, COL_RESP, usuario)
-                            aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())          
+                            aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())         
                             registrar_log(usuario, f"Pegou Mktp ({num_pedido})") # Grava com o número!
                             st.cache_data.clear(); time.sleep(1); st.rerun()
                     else: st_autorefresh(interval=60000, key="refresh_mktp")
 
-# =========================================================================
+    # =========================================================================
     # 🎯 SQUAD NOVO: ATIVAS E REIVINDICAÇÕES (MARKETPLACE)
     # =========================================================================
     elif usuario in SQUAD_ATIVAS:
@@ -1472,7 +1488,7 @@ else:
                             
                             aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento")
                             aba_atual.update_cell(idx_linha, COL_RESP, usuario)
-                            aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())          
+                            aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())         
                             registrar_log(usuario, f"Pegou Ativa ({num_pedido})") 
                             st.cache_data.clear(); time.sleep(1); st.rerun()
                     else:
@@ -1576,7 +1592,7 @@ else:
                             
                             aba_chamados.update_cell(idx_linha, COL_STATUS, "Em Andamento")
                             aba_chamados.update_cell(idx_linha, COL_RESP, usuario)
-                            aba_chamados.update_cell(idx_linha, COL_INICIO, hora_texto())          
+                            aba_chamados.update_cell(idx_linha, COL_INICIO, hora_texto())         
                             registrar_log(usuario, f"Pegou chamado Qualitor ({num_chamado})") # Grava com o número!
                             st.cache_data.clear(); time.sleep(1); st.rerun()
                     else: 
