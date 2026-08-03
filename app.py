@@ -244,11 +244,20 @@ def carregar_agenda_transp():
 def carregar_logs_dia():
     if aba_logs is None: return pd.DataFrame()
     try:
-        dados = aba_logs.get_all_values()
-        if not dados: return pd.DataFrame()
-        if dados[0][0].lower() in ['usuario', 'nome', 'operador']: return pd.DataFrame(dados[1:], columns=["Usuario", "Acao", "DataHora"])
-        else: return pd.DataFrame(dados, columns=["Usuario", "Acao", "DataHora"])
-    except: return pd.DataFrame()
+        # 🛑 PUXA APENAS AS COLUNAS A, B e C! Corta 90% do lixo invisível.
+        dados = aba_logs.get_values('A:C')
+        if not dados or len(dados) < 2: return pd.DataFrame()
+        
+        # Pula a primeira linha (cabeçalho) e força o nome certo
+        df = pd.DataFrame(dados[1:], columns=["Usuario", "Acao", "DataHora"])
+        
+        # 🛑 ASPIRADOR DE PÓ MÁXIMO (Extermina linhas totalmente vazias na mesma hora)
+        df = df.replace('', pd.NA).dropna(how='all').fillna('')
+        
+        return df
+    except Exception as e:
+        print(f"Erro oculto ao carregar logs: {e}")
+        return pd.DataFrame()
         
 def ler_mural():
     try:
