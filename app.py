@@ -25,8 +25,9 @@ def conectar_firebase():
     try:
         # Verifica se a app já está iniciada para não dar erro de duplicação
         if not firebase_admin._apps:
-            # Transforma os secrets do Streamlit num dicionário Python
-            creds_dict = dict(st.secrets["gcp_service_account"])
+            # 🚨 MUDANÇA AQUI: Lê o secret "[firebase]" em vez do gcp_service_account!
+            creds_dict = dict(st.secrets["firebase"])
+            
             # Injeta as credenciais no Firebase
             cred = credentials.Certificate(creds_dict)
             firebase_admin.initialize_app(cred)
@@ -39,7 +40,6 @@ def conectar_firebase():
 
 # Tenta ligar logo na largada do aplicativo
 db = conectar_firebase()
-
 # =========================================================================
 # 🛡️ AIRBAG ANTI-QUOTA DO GOOGLE (O SALVA-FÉRIAS) - VERSÃO MAX
 # =========================================================================
