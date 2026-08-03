@@ -23,23 +23,23 @@ from firebase_admin import credentials, firestore
 @st.cache_resource
 def conectar_firebase():
     try:
-        # Verifica se a app já está iniciada para não dar erro de duplicação
+        # Lê o dicionário de secrets que você criou
+        creds_dict = dict(st.secrets["firebase"])
+        
+        # Garante que o firebase_admin não crie instâncias duplicadas
         if not firebase_admin._apps:
-            # 🚨 MUDANÇA AQUI: Lê o secret "[firebase]" em vez do gcp_service_account!
-            creds_dict = dict(st.secrets["firebase"])
-            
-            # Injeta as credenciais no Firebase
             cred = credentials.Certificate(creds_dict)
             firebase_admin.initialize_app(cred)
             
-        # Retorna o cliente do Firestore
-        return firestore.client()
+        # O PULO DO GATO: Forçamos a biblioteca do firestore a usar o project_id EXATO do seu secret novo
+        return firestore.client(project=creds_dict["project_id"])
+        
     except Exception as e:
-        st.error(f"Erro Crítico ao iniciar o Firebase: {e}")
+        print(f"Erro Crítico ao iniciar o Firebase: {e}")
         return None
 
-# Tenta ligar logo na largada do aplicativo
 db = conectar_firebase()
+
 # =========================================================================
 # 🛡️ AIRBAG ANTI-QUOTA DO GOOGLE (O SALVA-FÉRIAS) - VERSÃO MAX
 # =========================================================================
