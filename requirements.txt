@@ -9,3 +9,4 @@ fpdf
 openpyxl
 numpy
 firebase-admin
+psutil==5.9.8
