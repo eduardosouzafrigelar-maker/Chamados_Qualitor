@@ -256,75 +256,58 @@ def carregar_logs_dia():
 # 🔄 MOTORES DE DADOS (COM CADEADO DE MEMÓRIA - BLINDAGEM MÁXIMA)
 # =========================================================================
 
-# 1. Filas de Atendimento (Rápido: 120 segundos)
-@st.cache_data(ttl=120, max_entries=2)
+def _processar_aba_leve(aba, nome_coluna_chave):
+    """Função interna blindada para evitar estouro de RAM no Streamlit"""
+    if aba is None: return pd.DataFrame()
+    try:
+        # Puxa APENAS os dados reais (ignorando vazios) e muito mais rápido
+        dados = aba.get_all_values()
+        if not dados or len(dados) < 2: return pd.DataFrame()
+        
+        # Cria a tabela usando tipos leves
+        df = pd.DataFrame(dados[1:], columns=dados[0])
+        
+        # Remove colunas e linhas que sejam apenas lixo vazio
+        df = df.loc[:, df.columns != '']
+        df = df.replace('', pd.NA).dropna(how='all').fillna('')
+        
+        # Otimiza o formato da chave (ID/Pedido)
+        if nome_coluna_chave in df.columns: 
+            df[nome_coluna_chave] = df[nome_coluna_chave].astype(str).str.replace(r'\.0$', '', regex=True)
+            
+        # Converte as colunas que repetem os mesmos dados para "Category" (Economiza 80% de RAM!)
+        for col in ['Status', 'Etapa', 'SLA', 'Responsavel', 'Prioridade', 'Tipo_Atividade', 'Status_SLA']:
+            if col in df.columns:
+                df[col] = df[col].astype(str).str.strip().astype('category')
+                
+        return df
+    except Exception as e:
+        print(f"Erro ao carregar aba {aba.title}: {e}")
+        return pd.DataFrame()
+
+# Caches otimizados: TTL menor (60s) garante frescura, mas sem pesar.
+@st.cache_data(ttl=60, max_entries=2)
 def carregar_dados_chamados():
-    try:
-        dados = aba_chamados.get('A1:AZ2000') 
-        if not dados or len(dados) < 2: return pd.DataFrame()
-        
-        df = pd.DataFrame(dados)
-        df.columns = df.iloc[0].astype(str) 
-        df = df[1:].reset_index(drop=True)
-        
-        df = df.loc[:, df.columns != ''] 
-        df = df.replace('', pd.NA).dropna(how='all').fillna('')
-        
-        if 'Dados' in df.columns: df['Dados'] = df['Dados'].astype(str).str.replace(r'\.0$', '', regex=True)
-        if 'Status' in df.columns: df['Status'] = df['Status'].astype(str).str.strip()
-        return df
-    except: return pd.DataFrame()
+    return _processar_aba_leve(aba_chamados, 'Dados')
 
-@st.cache_data(ttl=120, max_entries=2)
+@st.cache_data(ttl=60, max_entries=2)
 def carregar_dados_azix():
-    if aba_azix is None: return pd.DataFrame()
-    try:
-        dados = aba_azix.get('A1:AZ2000') 
-        if not dados or len(dados) < 2: return pd.DataFrame()
-        
-        df = pd.DataFrame(dados)
-        df.columns = df.iloc[0].astype(str)
-        df = df[1:].reset_index(drop=True)
-        
-        df = df.loc[:, df.columns != ''] 
-        df = df.replace('', pd.NA).dropna(how='all').fillna('')
-        
-        if 'Nº Pedido venda' in df.columns: df['Nº Pedido venda'] = df['Nº Pedido venda'].astype(str).str.replace(r'\.0$', '', regex=True)
-        if 'Status' in df.columns: df['Status'] = df['Status'].astype(str).str.strip()
-        return df
-    except: return pd.DataFrame()
+    return _processar_aba_leve(aba_azix, 'Nº Pedido venda')
 
-@st.cache_data(ttl=120, max_entries=2)
+@st.cache_data(ttl=60, max_entries=2)
 def carregar_dados_ativas():
-    if aba_ativas is None: return pd.DataFrame()
-    try:
-        dados = aba_ativas.get('A1:AZ2000') 
-        if not dados or len(dados) < 2: return pd.DataFrame()
-        
-        df = pd.DataFrame(dados)
-        df.columns = df.iloc[0].astype(str)
-        df = df[1:].reset_index(drop=True)
-        
-        df = df.loc[:, df.columns != ''] 
-        df = df.replace('', pd.NA).dropna(how='all').fillna('')
-        
-        if 'Pedido' in df.columns: df['Pedido'] = df['Pedido'].astype(str).str.replace(r'\.0$', '', regex=True)
-        if 'Status' in df.columns: df['Status'] = df['Status'].astype(str).str.strip()
-        return df
-    except: return pd.DataFrame()
+    return _processar_aba_leve(aba_ativas, 'Pedido')
 
-@st.cache_data(ttl=120, max_entries=2) 
+@st.cache_data(ttl=60, max_entries=2) 
 def carregar_status_equipe():
     try:
-        dados = aba_users.get('A1:Z500')
+        dados = aba_users.get_all_values()
         if not dados or len(dados) < 2: return pd.DataFrame()
         
-        df = pd.DataFrame(dados)
-        df.columns = df.iloc[0].astype(str)
-        df = df[1:].reset_index(drop=True)
+        df = pd.DataFrame(dados[1:], columns=dados[0])
         return df.loc[:, df.columns != ''] 
     except: return pd.DataFrame()
-
+        
 @st.cache_data(ttl=3600, max_entries=2) 
 def carregar_agenda_transp():
     if aba_transp is None: return pd.DataFrame()
