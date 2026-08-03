@@ -193,7 +193,7 @@ def registrar_log(usuario, acao):
 # =========================================================================
 
 # 1. Filas de Atendimento (Rápido: 30 segundos)
-@st.cache_data(ttl=30, max_entries=2)
+@st.cache_data(ttl=120, max_entries=2)
 def carregar_dados_chamados():
     try:
         # 🛑 CADEADO: Puxa só até a linha 2000! Ignora o lixo invisível do Google.
@@ -212,7 +212,7 @@ def carregar_dados_chamados():
         return df
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=30, max_entries=2)
+@st.cache_data(ttl=120, max_entries=2)
 def carregar_dados_azix():
     if aba_azix is None: return pd.DataFrame()
     try:
@@ -231,7 +231,7 @@ def carregar_dados_azix():
         return df
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=30, max_entries=2)
+@st.cache_data(ttl=120, max_entries=2)
 def carregar_dados_ativas():
     if aba_ativas is None: return pd.DataFrame()
     try:
@@ -250,7 +250,7 @@ def carregar_dados_ativas():
         return df
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=60, max_entries=2) # 1 Minuto para a Equipe
+@st.cache_data(ttl=120, max_entries=2) # 1 Minuto para a Equipe
 def carregar_status_equipe():
     try:
         dados = aba_users.get('A1:Z500')
