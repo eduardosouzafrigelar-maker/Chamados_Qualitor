@@ -16,29 +16,29 @@ import numpy as np
 import re
 
 # =========================================================================
-# 🛡️ AIRBAG ANTI-QUOTA DO GOOGLE (O SALVA-FÉRIAS)
+# 🛡️ AIRBAG ANTI-QUOTA DO GOOGLE (O SALVA-FÉRIAS) - VERSÃO MAX
 # =========================================================================
 original_update_cell = gspread.worksheet.Worksheet.update_cell
 original_append_row = gspread.worksheet.Worksheet.append_row
 
 def blindagem_update_cell(self, row, col, val):
-    for tentativa in range(6): # Se der erro, tenta 6 vezes antes de desistir
+    for tentativa in range(12): # 🔄 Aumentamos para 12 tentativas!
         try:
             return original_update_cell(self, row, col, val)
         except Exception as e:
             if "429" in str(e) or "Quota" in str(e) or "quota" in str(e).lower():
-                time.sleep(2.5) # Respira fundo por 2.5 segundos para a API libertar o limite
+                time.sleep(8) # ⏳ Espera 8 segundos (até 96s no total, vencendo a trava de 1 minuto do Google)
             else:
                 raise e
     return original_update_cell(self, row, col, val)
 
 def blindagem_append_row(self, values, **kwargs):
-    for tentativa in range(6):
+    for tentativa in range(12):
         try:
             return original_append_row(self, values, **kwargs)
         except Exception as e:
             if "429" in str(e) or "Quota" in str(e) or "quota" in str(e).lower():
-                time.sleep(2.5)
+                time.sleep(8)
             else:
                 raise e
     return original_append_row(self, values, **kwargs)
