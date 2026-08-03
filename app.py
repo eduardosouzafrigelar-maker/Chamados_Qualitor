@@ -775,87 +775,89 @@ else:
             else: st.error("⏰ Expediente encerrado.")
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # ====================================================================
-        # ⏱️ NOVO MÓDULO: MOTOR DE TMA (TEMPO MÉDIO DE ATENDIMENTO) PELOS LOGS
+       # ====================================================================
+        # ⏱️ NOVO MÓDULO: MOTOR DE TMA (ON-DEMAND / A PEDIDO)
         # ====================================================================
         st.write("---")
-        st.markdown("### ⏱️ Desempenho de Tempo (TMA / TMT) - No Período")
-        
-        if not df_logs_periodo.empty:
-            with st.spinner("Analisando logs e calculando tempos médios..."):
-                try:
-                    df_tma = df_logs_periodo.copy()
-                    
-                    # 1. O Robô caça os números dos chamados dentro dos textos dos logs
-                    df_tma['ID_Chamado'] = df_tma['Acao'].astype(str).str.extract(r'(\d+)')
-                    
-                    # 2. O Robô separa o que é clique de Início e o que é clique de Fim
-                    def classificar_acao(texto):
-                        texto = str(texto).lower()
-                        if 'pegou' in texto or 'busca ativa' in texto: return 'Inicio'
-                        if any(x in texto for x in ['finalizou', 'concluiu', 'encerrada']): return 'Fim'
-                        return 'Outro'
-                    
-                    df_tma['Tipo_Acao'] = df_tma['Acao'].apply(classificar_acao)
-                    
-                    # 3. Filtra apenas as linhas úteis
-                    df_calc = df_tma[(df_tma['ID_Chamado'].notna()) & (df_tma['Tipo_Acao'].isin(['Inicio', 'Fim']))].copy()
-                    
-                    if not df_calc.empty:
-                        df_calc['DataHora_DT'] = pd.to_datetime(df_calc['DataHora'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
-                        
-                        # 4. Junta o Início e o Fim na mesma linha para calcular a diferença
-                        tma_pivot = df_calc.pivot_table(index=['Usuario', 'ID_Chamado'], columns='Tipo_Acao', values='DataHora_DT', aggfunc='first').reset_index()
-                        
-                        if 'Inicio' in tma_pivot.columns and 'Fim' in tma_pivot.columns:
-                            # A MATEMÁTICA DO TEMPO!
-                            tma_pivot['Duracao_Minutos'] = (tma_pivot['Fim'] - tma_pivot['Inicio']).dt.total_seconds() / 60.0
-                            tma_pivot = tma_pivot[tma_pivot['Duracao_Minutos'] > 0] # Remove erros e cliques duplicados rápidos
+        with st.expander("⏱️ Desempenho de Tempo (TMA / TMT) - Clique para Abrir", expanded=False):
+            st.info("💡 Para proteger a memória do servidor, o TMA não é calculado automaticamente. Selecione a data na Máquina do Tempo lá em cima e clique no botão abaixo.")
+            
+            if st.button("🚀 Calcular TMA do Período", type="primary"):
+                if not df_logs_periodo.empty:
+                    with st.spinner("Analisando logs e calculando tempos médios..."):
+                        try:
+                            df_tma = df_logs_periodo.copy()
                             
-                            if not tma_pivot.empty:
-                                # Define de qual squad a pessoa é
-                                def definir_squad(user):
-                                    if user in SQUAD_AZIX or user in SQUAD_MKTP: return "🔶 Azix/Mktp"
-                                    if user in SQUAD_ATIVAS: return "🎯 Ativas Mktp"
-                                    return "🔷 Qualitor"
+                            # 1. O Robô caça os números dos chamados dentro dos textos dos logs
+                            df_tma['ID_Chamado'] = df_tma['Acao'].astype(str).str.extract(r'(\d+)')
+                            
+                            # 2. O Robô separa o que é clique de Início e o que é clique de Fim
+                            def classificar_acao(texto):
+                                texto = str(texto).lower()
+                                if 'pegou' in texto or 'busca ativa' in texto: return 'Inicio'
+                                if any(x in texto for x in ['finalizou', 'concluiu', 'encerrada']): return 'Fim'
+                                return 'Outro'
+                            
+                            df_tma['Tipo_Acao'] = df_tma['Acao'].apply(classificar_acao)
+                            
+                            # 3. Filtra apenas as linhas úteis
+                            df_calc = df_tma[(df_tma['ID_Chamado'].notna()) & (df_tma['Tipo_Acao'].isin(['Inicio', 'Fim']))].copy()
+                            
+                            if not df_calc.empty:
+                                df_calc['DataHora_DT'] = pd.to_datetime(df_calc['DataHora'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
                                 
-                                tma_pivot['Equipe'] = tma_pivot['Usuario'].apply(definir_squad)
+                                # 4. Junta o Início e o Fim na mesma linha para calcular a diferença
+                                tma_pivot = df_calc.pivot_table(index=['Usuario', 'ID_Chamado'], columns='Tipo_Acao', values='DataHora_DT', aggfunc='first').reset_index()
                                 
-                                # Agrupamentos Matemáticos
-                                tma_geral = tma_pivot['Duracao_Minutos'].mean()
-                                tma_por_squad = tma_pivot.groupby('Equipe')['Duracao_Minutos'].mean().reset_index()
-                                tma_por_user = tma_pivot.groupby(['Equipe', 'Usuario'])['Duracao_Minutos'].agg(['mean', 'count']).reset_index()
-                                tma_por_user.columns = ['Equipe', 'Operador', 'TMA_Minutos', 'Chamados_Medidos']
-                                tma_por_user = tma_por_user.sort_values(by=['Equipe', 'TMA_Minutos'])
-                                
-                                # Formatador bonito de tempo
-                                def formatar_tma(minutos):
-                                    if pd.isna(minutos): return "-"
-                                    m = int(minutos)
-                                    s = int((minutos - m) * 60)
-                                    return f"{m}m {s}s"
-                                
-                                # --- DESENHA NA TELA ---
-                                col_t1, col_t2 = st.columns([1, 2])
-                                
-                                with col_t1:
-                                    st.markdown(f"<h3 style='color: #475569;'>TMA Global: <span style='color: #0f172a;'>{formatar_tma(tma_geral)}</span></h3>", unsafe_allow_html=True)
-                                    st.write("**TMA Médio por Equipe:**")
-                                    tma_por_squad['TMA Visual'] = tma_por_squad['Duracao_Minutos'].apply(formatar_tma)
-                                    st.dataframe(tma_por_squad[['Equipe', 'TMA Visual']], hide_index=True, use_container_width=True)
+                                if 'Inicio' in tma_pivot.columns and 'Fim' in tma_pivot.columns:
+                                    # A MATEMÁTICA DO TEMPO!
+                                    tma_pivot['Duracao_Minutos'] = (tma_pivot['Fim'] - tma_pivot['Inicio']).dt.total_seconds() / 60.0
+                                    tma_pivot = tma_pivot[tma_pivot['Duracao_Minutos'] > 0] # Remove erros e cliques duplicados rápidos
                                     
-                                with col_t2:
-                                    st.write("**👨‍💻 TMA Individual dos Operadores:**")
-                                    tma_por_user['TMA Visual'] = tma_por_user['TMA_Minutos'].apply(formatar_tma)
-                                    st.dataframe(tma_por_user[['Equipe', 'Operador', 'TMA Visual', 'Chamados_Medidos']], hide_index=True, use_container_width=True)
-                            else:
-                                st.info("⏳ Aguardando os operadores finalizarem os primeiros chamados para gerar as médias.")
-                        else:
-                            st.info("⏳ Recolhendo dados de Início e Fim das tratativas atuais...")
-                except Exception as e:
-                    st.error(f"O Cérebro de TMA está a carregar dados... (Erro menor ignorado: {e})")
-        else:
-            st.warning("Sem logs no período selecionado para calcular o TMA.")
+                                    if not tma_pivot.empty:
+                                        # Define de qual squad a pessoa é
+                                        def definir_squad(user):
+                                            if user in SQUAD_AZIX or user in SQUAD_MKTP: return "🔶 Azix/Mktp"
+                                            if user in SQUAD_ATIVAS: return "🎯 Ativas Mktp"
+                                            return "🔷 Qualitor"
+                                        
+                                        tma_pivot['Equipe'] = tma_pivot['Usuario'].apply(definir_squad)
+                                        
+                                        # Agrupamentos Matemáticos
+                                        tma_geral = tma_pivot['Duracao_Minutos'].mean()
+                                        tma_por_squad = tma_pivot.groupby('Equipe')['Duracao_Minutos'].mean().reset_index()
+                                        tma_por_user = tma_pivot.groupby(['Equipe', 'Usuario'])['Duracao_Minutos'].agg(['mean', 'count']).reset_index()
+                                        tma_por_user.columns = ['Equipe', 'Operador', 'TMA_Minutos', 'Chamados_Medidos']
+                                        tma_por_user = tma_por_user.sort_values(by=['Equipe', 'TMA_Minutos'])
+                                        
+                                        # Formatador bonito de tempo
+                                        def formatar_tma(minutos):
+                                            if pd.isna(minutos): return "-"
+                                            m = int(minutos)
+                                            s = int((minutos - m) * 60)
+                                            return f"{m}m {s}s"
+                                        
+                                        # --- DESENHA NA TELA ---
+                                        col_t1, col_t2 = st.columns([1, 2])
+                                        
+                                        with col_t1:
+                                            st.markdown(f"<h3 style='color: #475569;'>TMA Global: <span style='color: #0f172a;'>{formatar_tma(tma_geral)}</span></h3>", unsafe_allow_html=True)
+                                            st.write("**TMA Médio por Equipe:**")
+                                            tma_por_squad['TMA Visual'] = tma_por_squad['Duracao_Minutos'].apply(formatar_tma)
+                                            st.dataframe(tma_por_squad[['Equipe', 'TMA Visual']], hide_index=True, use_container_width=True)
+                                            
+                                        with col_t2:
+                                            st.write("**👨‍💻 TMA Individual dos Operadores:**")
+                                            tma_por_user['TMA Visual'] = tma_por_user['TMA_Minutos'].apply(formatar_tma)
+                                            st.dataframe(tma_por_user[['Equipe', 'Operador', 'TMA Visual', 'Chamados_Medidos']], hide_index=True, use_container_width=True)
+                                    else:
+                                        st.info("⏳ Aguardando os operadores finalizarem os primeiros chamados para gerar as médias.")
+                                else:
+                                    st.info("⏳ Recolhendo dados de Início e Fim das tratativas atuais...")
+                        except Exception as e:
+                            st.error(f"Erro ao calcular TMA: {e}")
+                else:
+                    st.warning("Sem logs no período selecionado para calcular o TMA.")
 
         # --- NOVA VISUALIZAÇÃO: MÉTRICAS DE VALIDAÇÃO DA RECEITA (AZIX) ---
         st.write("---")
