@@ -16,6 +16,7 @@ import numpy as np
 import re
 import firebase_admin
 from firebase_admin import credentials, firestore
+import psutil
 
 # =========================================================================
 # 🔥 CONEXÃO BLINDADA COM O FIREBASE (À PROVA DE CACHE E FALHAS)
@@ -625,6 +626,21 @@ else:
         azix_devolvidos_periodo = 0
         ativas_concluidos_periodo = 0
         importados_azix = 0
+
+        # --- MONITOR DE SAÚDE DO SERVIDOR ---
+        st.write("---")
+        st.subheader("🖥️ Saúde do Servidor (Streamlit Cloud)")
+        
+        memoria = psutil.virtual_memory()
+        cpu = psutil.cpu_percent(interval=0.1)
+        
+        c_serv1, c_serv2 = st.columns(2)
+        
+        # Se passar de 85%, fica vermelho para te alertar
+        cor_mem = "normal" if memoria.percent < 85 else "inverse"
+        
+        c_serv1.metric("Memória RAM Usada", f"{memoria.percent}%", delta=f"{memoria.used / (1024**2):.0f} MB de 1024 MB", delta_color=cor_mem)
+        c_serv2.metric("Processamento (CPU)", f"{cpu}%")
         
         if not df_logs.empty:
             df_logs['DataReal'] = pd.to_datetime(df_logs['DataHora'].str.split(' ').str[0], format="%d/%m/%Y", errors='coerce').dt.date
