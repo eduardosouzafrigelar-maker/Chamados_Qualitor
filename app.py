@@ -1325,7 +1325,7 @@ else:
                     st.markdown("#### 🏛️ Validação Endereço Receita")
                     st.caption("Preencha para gerar as métricas de divergência de endereço.")
                     val_atual = str(dados.get('Validacao_Receita', 'Não Tratado'))
-                    opcoes_val = ["Não Tratado", "Cliente Aceitou", "Cliente Negou", "Aguardando Cliente"]
+                    opcoes_val = ["SLA Esgotado", "Cliente Aceitou", "Cliente Negou", "Aguardando Cliente"]
                     idx_val = opcoes_val.index(val_atual) if val_atual in opcoes_val else 0
                     escolha_validacao = st.radio("Selecione o status desta tratativa:", opcoes_val, index=idx_val, horizontal=True)
 
