@@ -17,7 +17,9 @@ import re
 import firebase_admin
 from firebase_admin import credentials, firestore
 import psutil
+import threading
 
+planilha_lock = threading.Lock()
 # =========================================================================
 # 🔥 CONEXÃO BLINDADA COM O FIREBASE (À PROVA DE CACHE E FALHAS)
 # =========================================================================
@@ -48,33 +50,32 @@ if isinstance(db_resultado, str):
 else:
     db = db_resultado
 
-# =========================================================================
-# 🛡️ AIRBAG ANTI-QUOTA DO GOOGLE (O SALVA-FÉRIAS) - VERSÃO MAX
-# =========================================================================
 original_update_cell = gspread.worksheet.Worksheet.update_cell
 original_append_row = gspread.worksheet.Worksheet.append_row
 
 def blindagem_update_cell(self, row, col, val):
-    for tentativa in range(12): 
-        try:
-            return original_update_cell(self, row, col, val)
-        except Exception as e:
-            if "429" in str(e) or "Quota" in str(e) or "quota" in str(e).lower():
-                time.sleep(8) 
-            else:
-                raise e
-    return original_update_cell(self, row, col, val)
+    with planilha_lock:  # <--- O SEMÁFORO ENTRA AQUI
+        for tentativa in range(12): 
+            try:
+                return original_update_cell(self, row, col, val)
+            except Exception as e:
+                if "429" in str(e) or "Quota" in str(e) or "quota" in str(e).lower():
+                    time.sleep(8) 
+                else:
+                    raise e
+        return original_update_cell(self, row, col, val)
 
 def blindagem_append_row(self, values, **kwargs):
-    for tentativa in range(12):
-        try:
-            return original_append_row(self, values, **kwargs)
-        except Exception as e:
-            if "429" in str(e) or "Quota" in str(e) or "quota" in str(e).lower():
-                time.sleep(8)
-            else:
-                raise e
-    return original_append_row(self, values, **kwargs)
+    with planilha_lock:  # <--- O SEMÁFORO ENTRA AQUI
+        for tentativa in range(12):
+            try:
+                return original_append_row(self, values, **kwargs)
+            except Exception as e:
+                if "429" in str(e) or "Quota" in str(e) or "quota" in str(e).lower():
+                    time.sleep(8)
+                else:
+                    raise e
+        return original_append_row(self, values, **kwargs)
 
 gspread.worksheet.Worksheet.update_cell = blindagem_update_cell
 gspread.worksheet.Worksheet.append_row = blindagem_append_row
@@ -235,8 +236,8 @@ def carregar_logs_dia():
     if db is None: 
         return pd.DataFrame(columns=["Usuario", "Acao", "DataHora"])
     try:
-        # Lê os documentos
-        docs = db.collection('logs_qualitor').stream()
+        # Lê apenas os 5000 documentos mais recentes (impede lentidão e peso na memória)
+        docs = db.collection('logs_qualitor').order_by("__name__", direction=firestore.Query.DESCENDING).limit(5000).stream()
         lista_logs = [doc.to_dict() for doc in docs]
         
         if not lista_logs: 
@@ -252,7 +253,7 @@ def carregar_logs_dia():
     except Exception as e:
         print(f"Erro na leitura dos logs: {e}")
         return pd.DataFrame(columns=["Usuario", "Acao", "DataHora"])
-
+        
 # =========================================================================
 # 🔄 MOTORES DE DADOS (COM CADEADO DE MEMÓRIA - BLINDAGEM MÁXIMA)
 # =========================================================================
@@ -261,22 +262,18 @@ def _processar_aba_leve(aba, nome_coluna_chave):
     """Função interna blindada para evitar estouro de RAM no Streamlit"""
     if aba is None: return pd.DataFrame()
     try:
-        # Puxa APENAS os dados reais (ignorando vazios) e muito mais rápido
-        dados = aba.get_all_values()
+        with planilha_lock:  # <--- SEMÁFORO DE LEITURA
+            dados = aba.get_all_values()
+            
         if not dados or len(dados) < 2: return pd.DataFrame()
         
-        # Cria a tabela usando tipos leves
         df = pd.DataFrame(dados[1:], columns=dados[0])
-        
-        # Remove colunas e linhas que sejam apenas lixo vazio
         df = df.loc[:, df.columns != '']
         df = df.replace('', pd.NA).dropna(how='all').fillna('')
         
-        # Otimiza o formato da chave (ID/Pedido)
         if nome_coluna_chave in df.columns: 
             df[nome_coluna_chave] = df[nome_coluna_chave].astype(str).str.replace(r'\.0$', '', regex=True)
             
-        # Converte as colunas que repetem os mesmos dados para "Category" (Economiza 80% de RAM!)
         for col in ['Status', 'Etapa', 'SLA', 'Responsavel', 'Prioridade', 'Tipo_Atividade', 'Status_SLA']:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.strip().astype('category')
@@ -302,7 +299,9 @@ def carregar_dados_ativas():
 @st.cache_data(ttl=60, max_entries=2) 
 def carregar_status_equipe():
     try:
-        dados = aba_users.get_all_values()
+        with planilha_lock:  # <--- SEMÁFORO DE LEITURA DA EQUIPE
+            dados = aba_users.get_all_values()
+            
         if not dados or len(dados) < 2: return pd.DataFrame()
         
         df = pd.DataFrame(dados[1:], columns=dados[0])
