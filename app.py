@@ -7,19 +7,18 @@ import pytz
 import os
 import requests
 import streamlit.components.v1 as components
-import google.generativeai as genai
+from google import genai
 from streamlit_autorefresh import st_autorefresh
 from fpdf import FPDF
 import unicodedata
 import base64
 import numpy as np
 import re
+import hashlib
 import firebase_admin
 from firebase_admin import credentials, firestore
-import psutil
-import threading
-
-planilha_lock = threading.Lock()
+from gspread.utils import rowcol_to_a1
+from google.cloud.firestore_v1.base_query import FieldFilter
 # =========================================================================
 # 🔥 CONEXÃO BLINDADA COM O FIREBASE (À PROVA DE CACHE E FALHAS)
 # =========================================================================
@@ -50,37 +49,6 @@ if isinstance(db_resultado, str):
 else:
     db = db_resultado
 
-original_update_cell = gspread.worksheet.Worksheet.update_cell
-original_append_row = gspread.worksheet.Worksheet.append_row
-
-def blindagem_update_cell(self, row, col, val):
-    with planilha_lock:  # <--- O SEMÁFORO ENTRA AQUI
-        for tentativa in range(12): 
-            try:
-                return original_update_cell(self, row, col, val)
-            except Exception as e:
-                if "429" in str(e) or "Quota" in str(e) or "quota" in str(e).lower():
-                    time.sleep(8) 
-                else:
-                    raise e
-        return original_update_cell(self, row, col, val)
-
-def blindagem_append_row(self, values, **kwargs):
-    with planilha_lock:  # <--- O SEMÁFORO ENTRA AQUI
-        for tentativa in range(12):
-            try:
-                return original_append_row(self, values, **kwargs)
-            except Exception as e:
-                if "429" in str(e) or "Quota" in str(e) or "quota" in str(e).lower():
-                    time.sleep(8)
-                else:
-                    raise e
-        return original_append_row(self, values, **kwargs)
-
-gspread.worksheet.Worksheet.update_cell = blindagem_update_cell
-gspread.worksheet.Worksheet.append_row = blindagem_append_row
-# =========================================================================
-
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
 
@@ -105,36 +73,34 @@ def verificar_meta_baloes(usuario_atual, df_ranking, meta):
     if feitos_agora in [10, 25, meta, 75, 100]:
         st.session_state['soltar_baloes'] = True
 
-# --- 🧠 CONFIGURAÇÃO DA IA (ORÁCULO E RESUMIDOR) ---
-try:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    modelo_escolhido = None
-    for m in genai.list_models():
-        if 'generateContent' in m.supported_generation_methods:
-            if 'flash' in m.name: 
-                modelo_escolhido = m.name
-                break
-    if not modelo_escolhido:
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                modelo_escolhido = m.name
-                break
-    if modelo_escolhido and modelo_escolhido.startswith("models/"):
-        modelo_escolhido = modelo_escolhido.replace("models/", "")
-        
-    modelo_oraculo = genai.GenerativeModel(modelo_escolhido)
-    ia_ativa = True
-except Exception as e:
-    modelo_oraculo = None
-    ia_ativa = False
-    erro_ia = str(e)
+# --- 🧠 CONFIGURAÇÃO DA IA (CARREGAMENTO SOMENTE SOB DEMANDA) ---
+MODELO_GEMINI = "gemini-3.1-flash-lite"
+
+@st.cache_resource
+def iniciar_cliente_gemini():
+    """Cria um único cliente por processo, apenas quando a IA for utilizada."""
+    api_key = st.secrets.get("GEMINI_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY não configurada.")
+    return genai.Client(api_key=api_key)
+
+def gerar_conteudo_gemini(prompt):
+    cliente = iniciar_cliente_gemini()
+    return cliente.models.generate_content(
+        model=MODELO_GEMINI,
+        contents=prompt,
+    )
+
+ia_ativa = bool(st.secrets.get("GEMINI_API_KEY", ""))
 
 # --- 🚨 ALERTA MICROSOFT TEAMS ---
 def alertar_teams(mensagem):
-    webhook_url = "https://frigelar.webhook.office.com/webhookb2/ec98f756-9855-46a4-a0c4-084062e87994@d8d0f357-174f-48d7-b3b2-a5a630b0cd99/IncomingWebhook/4282a43bc29f475d9d1ca3629f01fcd6/5cd3c896-0830-48e2-9541-84f9563e933b/V2CUlXhnGitZt59misdhM4o9QEsdDxbpLgnT7PUUALYJc1"
-    if webhook_url != "https://teams.microsoft.com/l/chat/48:notes/conversations?context=%7B%22contextType%22%3A%22chat%22%7D":
-        try: requests.post(webhook_url, json={"text": mensagem})
-        except: pass
+    webhook_url = st.secrets.get("TEAMS_WEBHOOK_URL", "")
+    if webhook_url:
+        try:
+            requests.post(webhook_url, json={"text": mensagem}, timeout=5)
+        except Exception as e:
+            print(f"Erro ao alertar Teams: {e}")
 
 # --- CONEXÃO BLINDADA (ANTI-TRAVAMENTO) ---
 @st.cache_resource
@@ -150,7 +116,7 @@ def conectar_e_abrir_abas():
                 return "🚨 ERRO: Credenciais não encontradas.", None, None, None, None, None, None
         
         erro_real = ""
-        for tentativa in range(10):
+        for tentativa in range(3):
             try:
                 sh = client.open("Chamados_Qualitor") 
                 abas = sh.worksheets()
@@ -166,9 +132,9 @@ def conectar_e_abrir_abas():
                 else: erro_real = "A planilha tem menos de 2 abas visíveis."
             except Exception as e:
                 erro_real = str(e)
-                time.sleep(2 + tentativa)
+                time.sleep(2 ** tentativa)
                 
-        return f"Falha após 10 tentativas. Erro: {erro_real}", None, None, None, None, None, None
+        return f"Falha após 3 tentativas. Erro: {erro_real}", None, None, None, None, None, None
     except Exception as e:
         return f"Erro Crítico: {str(e)}", None, None, None, None, None, None
 
@@ -225,19 +191,26 @@ def registrar_log(usuario, acao):
             db.collection('logs_qualitor').document(log_id).set({
                 "Usuario": str(usuario),
                 "Acao": str(acao),
-                "DataHora": hora_texto()
+                "DataHora": hora_texto(),
+                "Data": data_hoje(),
+                "CriadoEm": firestore.SERVER_TIMESTAMP,
             })
     except Exception as e: 
         # Trocamos o pass por um print no console do Streamlit para você ver o erro lá se falhar
         print(f"Erro na gravação do log: {e}")
 
-@st.cache_data(ttl=60, max_entries=2) 
+@st.cache_data(ttl=180, max_entries=1, show_spinner=False)
 def carregar_logs_dia():
     if db is None: 
         return pd.DataFrame(columns=["Usuario", "Acao", "DataHora"])
     try:
-        # Lê apenas os 5000 documentos mais recentes (impede lentidão e peso na memória)
-        docs = db.collection('logs_qualitor').order_by("__name__", direction=firestore.Query.DESCENDING).limit(5000).stream()
+        # Mantém um teto de segurança. Os novos registros também recebem o campo Data.
+        docs = (
+            db.collection('logs_qualitor')
+            .order_by("__name__", direction=firestore.Query.DESCENDING)
+            .limit(3000)
+            .stream()
+        )
         lista_logs = [doc.to_dict() for doc in docs]
         
         if not lista_logs: 
@@ -253,6 +226,32 @@ def carregar_logs_dia():
     except Exception as e:
         print(f"Erro na leitura dos logs: {e}")
         return pd.DataFrame(columns=["Usuario", "Acao", "DataHora"])
+
+@st.cache_data(ttl=180, max_entries=1, show_spinner=False)
+def carregar_metricas_dia():
+    df_logs = carregar_logs_dia()
+    ranking = pd.DataFrame(columns=["Nome", "Qtd"])
+    metricas = {"azix_concluidos": 0, "azix_avancados": 0}
+    if df_logs.empty:
+        return ranking, metricas
+
+    hoje = data_hoje()
+    logs_hoje = df_logs[df_logs['DataHora'].astype(str).str.contains(hoje)]
+    feitos = logs_hoje[logs_hoje['Acao'].astype(str).str.contains(
+        "Finalizou|Encerrada|Concluiu Azix|Concluiu Ativa|Reivindicação Encerrada",
+        case=False,
+    )]
+    if not feitos.empty:
+        ranking = feitos['Usuario'].value_counts().reset_index()
+        ranking.columns = ['Nome', 'Qtd']
+
+    metricas["azix_concluidos"] = len(logs_hoje[
+        logs_hoje['Acao'].astype(str).str.contains("Concluiu Azix", case=False)
+    ])
+    metricas["azix_avancados"] = len(logs_hoje[
+        logs_hoje['Acao'].astype(str).str.contains("Azix para Mktp", case=False)
+    ])
+    return ranking, metricas
         
 # =========================================================================
 # 🔄 MOTORES DE DADOS (COM CADEADO DE MEMÓRIA - BLINDAGEM MÁXIMA)
@@ -262,8 +261,7 @@ def _processar_aba_leve(aba, nome_coluna_chave):
     """Função interna blindada para evitar estouro de RAM no Streamlit"""
     if aba is None: return pd.DataFrame()
     try:
-        with planilha_lock:  # <--- SEMÁFORO DE LEITURA
-            dados = aba.get_all_values()
+        dados = aba.get_all_values()
             
         if not dados or len(dados) < 2: return pd.DataFrame()
         
@@ -284,23 +282,22 @@ def _processar_aba_leve(aba, nome_coluna_chave):
         return pd.DataFrame()
 
 # Caches otimizados: TTL menor (60s) garante frescura, mas sem pesar.
-@st.cache_data(ttl=60, max_entries=2)
+@st.cache_data(ttl=180, max_entries=1, show_spinner=False)
 def carregar_dados_chamados():
     return _processar_aba_leve(aba_chamados, 'Dados')
 
-@st.cache_data(ttl=60, max_entries=2)
+@st.cache_data(ttl=180, max_entries=1, show_spinner=False)
 def carregar_dados_azix():
     return _processar_aba_leve(aba_azix, 'Nº Pedido venda')
 
-@st.cache_data(ttl=60, max_entries=2)
+@st.cache_data(ttl=180, max_entries=1, show_spinner=False)
 def carregar_dados_ativas():
     return _processar_aba_leve(aba_ativas, 'Pedido')
 
-@st.cache_data(ttl=60, max_entries=2) 
+@st.cache_data(ttl=120, max_entries=1, show_spinner=False)
 def carregar_status_equipe():
     try:
-        with planilha_lock:  # <--- SEMÁFORO DE LEITURA DA EQUIPE
-            dados = aba_users.get_all_values()
+        dados = aba_users.get_all_values()
             
         if not dados or len(dados) < 2: return pd.DataFrame()
         
@@ -308,11 +305,114 @@ def carregar_status_equipe():
         return df.loc[:, df.columns != ''] 
     except: return pd.DataFrame()
         
-@st.cache_data(ttl=3600, max_entries=2) 
+@st.cache_data(ttl=3600, max_entries=1, show_spinner=False)
 def carregar_agenda_transp():
     if aba_transp is None: return pd.DataFrame()
     try: return pd.DataFrame(aba_transp.get_all_records())
     except: return pd.DataFrame()
+
+def invalidar_cache_base(nome_base):
+    """Invalida apenas a base alterada, evitando recarregar todo o sistema."""
+    if nome_base == "qualitor":
+        carregar_dados_chamados.clear()
+    elif nome_base == "azix":
+        carregar_dados_azix.clear()
+    elif nome_base == "ativas":
+        carregar_dados_ativas.clear()
+    elif nome_base == "equipe":
+        carregar_status_equipe.clear()
+
+def invalidar_cache_usuario(usuario_atual):
+    if usuario_atual in SQUAD_AZIX or usuario_atual in SQUAD_MKTP:
+        invalidar_cache_base("azix")
+    elif usuario_atual in SQUAD_ATIVAS:
+        invalidar_cache_base("ativas")
+    else:
+        invalidar_cache_base("qualitor")
+
+def invalidar_todos_os_dados():
+    carregar_dados_chamados.clear()
+    carregar_dados_azix.clear()
+    carregar_dados_ativas.clear()
+    carregar_status_equipe.clear()
+    carregar_logs_dia.clear()
+    carregar_metricas_dia.clear()
+
+def _reserva_ref(aba, linha):
+    chave = f"{aba.id}:{int(linha)}"
+    doc_id = hashlib.sha256(chave.encode("utf-8")).hexdigest()
+    return db.collection("reservas_atendimento").document(doc_id)
+
+@firestore.transactional
+def _reservar_em_transacao(transaction, referencia, usuario, aba_id, linha):
+    snapshot = referencia.get(transaction=transaction)
+    if snapshot.exists:
+        dados_reserva = snapshot.to_dict() or {}
+        dono = str(dados_reserva.get("Usuario", ""))
+        if dono and dono != usuario:
+            return False, dono
+
+    transaction.set(referencia, {
+        "Usuario": usuario,
+        "AbaId": str(aba_id),
+        "Linha": int(linha),
+        "Status": "Em Andamento",
+        "AtualizadoEm": firestore.SERVER_TIMESTAMP,
+    })
+    return True, usuario
+
+def reservar_atendimento(aba, linha, usuario, status_destino, col_status, col_resp, col_inicio):
+    """Reserva no Firestore e grava as três células do Sheets em uma única chamada."""
+    if db is None:
+        return False, "Firebase indisponível; a reserva segura não foi realizada."
+
+    referencia = _reserva_ref(aba, linha)
+    transacao = db.transaction()
+    reservado, dono = _reservar_em_transacao(
+        transacao, referencia, usuario, aba.id, linha
+    )
+    if not reservado:
+        return False, f"Este atendimento acabou de ser reservado por {dono}. Atualize a fila."
+
+    try:
+        aba.batch_update([
+            {"range": rowcol_to_a1(linha, col_status), "values": [[status_destino]]},
+            {"range": rowcol_to_a1(linha, col_resp), "values": [[usuario]]},
+            {"range": rowcol_to_a1(linha, col_inicio), "values": [[hora_texto()]]},
+        ])
+        return True, "Atendimento reservado."
+    except Exception:
+        referencia.delete()
+        raise
+
+def liberar_reserva(aba, linha):
+    if db is None or aba is None:
+        return
+    try:
+        _reserva_ref(aba, linha).delete()
+    except Exception as e:
+        print(f"Erro ao liberar reserva: {e}")
+
+def limpar_reservas_aba(aba):
+    """Remove reservas antigas quando uma aba inteira é regravada e as linhas mudam."""
+    if db is None or aba is None:
+        return
+    try:
+        docs = db.collection("reservas_atendimento").where(
+            filter=FieldFilter("AbaId", "==", str(aba.id))
+        ).stream()
+        lote = db.batch()
+        quantidade = 0
+        for doc in docs:
+            lote.delete(doc.reference)
+            quantidade += 1
+            if quantidade % 400 == 0:
+                lote.commit()
+                lote = db.batch()
+        if quantidade % 400:
+            lote.commit()
+    except Exception as e:
+        print(f"Erro ao limpar reservas da aba: {e}")
 
 def ler_mural():
     try:
@@ -325,17 +425,6 @@ def salvar_mural(texto):
 def is_marketplace(texto):
     palavras_chave = ['MAGAZINE', 'MERCADO', 'B2W', 'AMAZON', 'SHOPEE', 'CARREFOUR']
     return any(k in str(texto).upper() for k in palavras_chave)
-
-# --- RANKING GLOBAL ---
-df_logs_global = carregar_logs_dia()
-ranking_global = pd.DataFrame()
-if not df_logs_global.empty:
-    hoje = data_hoje()
-    logs_hoje = df_logs_global[df_logs_global['DataHora'].astype(str).str.contains(hoje)]
-    feitos_logs = logs_hoje[logs_hoje['Acao'].astype(str).str.contains("Finalizou|Encerrada|Concluiu Azix|Concluiu Ativa|Reivindicação Encerrada", case=False)]
-    if not feitos_logs.empty:
-        ranking_global = feitos_logs['Usuario'].value_counts().reset_index()
-        ranking_global.columns = ['Nome', 'Qtd']
 
 if 'soltar_baloes' in st.session_state and st.session_state['soltar_baloes']:
     st.balloons(); st.session_state['soltar_baloes'] = False
@@ -371,7 +460,7 @@ if 'usuario' not in st.session_state:
     else:
         lista_nomes = []; senhas = {}
         st.warning("⚠️ Planilha a carregar. Aguarde.")
-        if st.button("🔄 Recarregar Nomes"): st.cache_data.clear(); st.rerun()
+        if st.button("🔄 Recarregar Nomes"): invalidar_cache_base("equipe"); st.rerun()
 
     render_corporate_login()
     def get_image_base64(caminho_imagem):
@@ -402,7 +491,7 @@ if 'usuario' not in st.session_state:
                     try:
                         idx = df_equipe.index[df_equipe['Colaboradores'] == user_digitado].tolist()[0] + 2
                         aba_users.update_cell(idx, 3, "Disponivel")
-                        st.cache_data.clear() 
+                        invalidar_cache_base("equipe")
                     except: pass
                     st.rerun()
                 else: st.error("❌ Login não encontrado ou senha incorreta.")
@@ -412,33 +501,10 @@ if 'usuario' not in st.session_state:
 # ===================================================
 else:
     usuario = st.session_state['usuario']
-    
-    # 🧠 ROTEAMENTO DE BASES
-    df_qualitor = carregar_dados_chamados()
-    df_azix_data = carregar_dados_azix()
-    df_ativas_data = carregar_dados_ativas() # <-- PUXA OS DADOS
     df_equipe = carregar_status_equipe()
 
-    # Roteamento
-    if usuario in SQUAD_AZIX or usuario in SQUAD_MKTP:
-        df = df_azix_data
-        aba_atual = aba_azix
-    elif usuario in SQUAD_ATIVAS: # <-- O NOVO DESVIO NO TRILHO
-        df = df_ativas_data
-        aba_atual = aba_ativas
-    else:
-        df = df_qualitor
-        aba_atual = aba_chamados
-
-    # 📍 O GPS DE COLUNAS (A CORREÇÃO DO ERRO ENTRA AQUI!)
-    if not df.empty:
-        cols_planilha = df.columns.tolist()
-        COL_STATUS = cols_planilha.index("Status") + 1 if "Status" in cols_planilha else 3
-        COL_RESP = cols_planilha.index("Responsavel") + 1 if "Responsavel" in cols_planilha else 5
-        COL_INICIO = cols_planilha.index("Inicio") + 1 if "Inicio" in cols_planilha else 6
-        COL_FIM = cols_planilha.index("Data_Conclusao") + 1 if "Data_Conclusao" in cols_planilha else 7
-    else:
-        COL_STATUS, COL_RESP, COL_INICIO, COL_FIM = 3, 5, 6, 7
+    # Operadores recebem somente métricas resumidas, não milhares de logs brutos.
+    ranking_global, metricas_hoje = carregar_metricas_dia()
 
     hora_atual = hora_brasil().hour
     if 6 <= hora_atual < 12: saudacao = "Bom dia"; sub_saudacao = "Pronto para os chamados?"
@@ -470,11 +536,11 @@ else:
         st.info(f"Status Atual: **{status_real}**")
         c1, c2 = st.columns(2)
         if c1.button("🟢 Online"):
-            if linha_planilha: aba_users.update_cell(linha_planilha, 3, "Disponivel"); registrar_log(usuario, "Ficou Disponivel"); st.cache_data.clear(); st.rerun()
+            if linha_planilha: aba_users.update_cell(linha_planilha, 3, "Disponivel"); registrar_log(usuario, "Ficou Disponivel"); invalidar_cache_base("equipe"); st.rerun()
         if c2.button("☕ Pausa"):
-            if linha_planilha: aba_users.update_cell(linha_planilha, 3, "Pausa"); registrar_log(usuario, "Entrou em Pausa"); st.cache_data.clear(); st.rerun()
+            if linha_planilha: aba_users.update_cell(linha_planilha, 3, "Pausa"); registrar_log(usuario, "Entrou em Pausa"); invalidar_cache_base("equipe"); st.rerun()
         if st.button("🚽 Banheiro"):
-            if linha_planilha: aba_users.update_cell(linha_planilha, 3, "Banheiro"); registrar_log(usuario, "Foi ao Banheiro"); st.cache_data.clear(); st.rerun()
+            if linha_planilha: aba_users.update_cell(linha_planilha, 3, "Banheiro"); registrar_log(usuario, "Foi ao Banheiro"); invalidar_cache_base("equipe"); st.rerun()
         
         st.divider()
         st.subheader("🏆 Seu Desempenho Hoje")
@@ -523,13 +589,48 @@ else:
                             aba_users.update_cell(linha_planilha, col_senha_idx, nova_senha)
                             registrar_log(usuario, "Mudou a própria senha")
                             st.success("✅ Senha atualizada! Use no próximo login.")
-                            st.cache_data.clear()
+                            invalidar_cache_base("equipe")
                         else: st.error("Erro: Coluna 'Senha' não encontrada.")
                     except Exception as e: st.error(f"Erro ao mudar senha: {e}")
                 else: st.warning("⚠️ Senhas não batem ou são curtas (mín. 4).")
                 
         st.divider()
         if st.button("Sair (Logout)"): registrar_log(usuario, "LOGOUT"); del st.session_state['usuario']; st.rerun()
+
+    # Carrega somente as bases necessárias para a tela atual.
+    df_qualitor = pd.DataFrame()
+    df_azix_data = pd.DataFrame()
+    df_ativas_data = pd.DataFrame()
+
+    if usuario == "TV" or modo_gerente:
+        df_qualitor = carregar_dados_chamados()
+        df_azix_data = carregar_dados_azix()
+        df_ativas_data = carregar_dados_ativas()
+    elif usuario in SQUAD_AZIX or usuario in SQUAD_MKTP:
+        df_azix_data = carregar_dados_azix()
+    elif usuario in SQUAD_ATIVAS:
+        df_ativas_data = carregar_dados_ativas()
+    else:
+        df_qualitor = carregar_dados_chamados()
+
+    if usuario in SQUAD_AZIX or usuario in SQUAD_MKTP:
+        df = df_azix_data
+        aba_atual = aba_azix
+    elif usuario in SQUAD_ATIVAS:
+        df = df_ativas_data
+        aba_atual = aba_ativas
+    else:
+        df = df_qualitor
+        aba_atual = aba_chamados
+
+    if not df.empty:
+        cols_planilha = df.columns.tolist()
+        COL_STATUS = cols_planilha.index("Status") + 1 if "Status" in cols_planilha else 3
+        COL_RESP = cols_planilha.index("Responsavel") + 1 if "Responsavel" in cols_planilha else 5
+        COL_INICIO = cols_planilha.index("Inicio") + 1 if "Inicio" in cols_planilha else 6
+        COL_FIM = cols_planilha.index("Data_Conclusao") + 1 if "Data_Conclusao" in cols_planilha else 7
+    else:
+        COL_STATUS, COL_RESP, COL_INICIO, COL_FIM = 3, 5, 6, 7
 
     # ===================================================
     # 📺 MODO TELÃO (TV DO SALÃO)
@@ -550,8 +651,8 @@ else:
         dentro_sla_a = pend_a - fora_sla_a
         
         # --- LÓGICA DE PRODUÇÃO AZIX HOJE (LIDA DOS LOGS) ---
-        azix_hoje_conc = len(logs_hoje[logs_hoje['Acao'].astype(str).str.contains("Concluiu Azix", case=False)]) if not df_logs_global.empty else 0
-        azix_hoje_avan = len(logs_hoje[logs_hoje['Acao'].astype(str).str.contains("Azix para Mktp", case=False)]) if not df_logs_global.empty else 0
+        azix_hoje_conc = metricas_hoje["azix_concluidos"]
+        azix_hoje_avan = metricas_hoje["azix_avancados"]
         
         colQ, colA = st.columns(2)
         with colQ:
@@ -606,7 +707,7 @@ else:
     elif modo_gerente:
         st.title("📊 Painel de Controle - Gestão")
         st.caption(f"Última atualização: {hora_texto()}")
-        if st.button("🔄 Atualizar Tudo (Limpar Cache)"): st.cache_data.clear(); st.rerun()
+        if st.button("🔄 Atualizar Tudo"): invalidar_todos_os_dados(); st.rerun()
         
         # --- MÁQUINA DO TEMPO (FILTRO DE PERÍODO NO FORMATO BR) ---
         st.write("---")
@@ -629,17 +730,7 @@ else:
         # --- MONITOR DE SAÚDE DO SERVIDOR ---
         st.write("---")
         st.subheader("🖥️ Saúde do Servidor (Streamlit Cloud)")
-        
-        memoria = psutil.virtual_memory()
-        cpu = psutil.cpu_percent(interval=0.1)
-        
-        c_serv1, c_serv2 = st.columns(2)
-        
-        # Se passar de 85%, fica vermelho para te alertar
-        cor_mem = "normal" if memoria.percent < 85 else "inverse"
-        
-        c_serv1.metric("Memória RAM Usada", f"{memoria.percent}%", delta=f"{memoria.used / (1024**2):.0f} MB de 1024 MB", delta_color=cor_mem)
-        c_serv2.metric("Processamento (CPU)", f"{cpu}%")
+        st.info("Monitor local desativado para evitar incompatibilidade com o ambiente do Streamlit Cloud. Acompanhe a saúde pelos Cloud logs.")
         
         if not df_logs.empty:
             df_logs['DataReal'] = pd.to_datetime(df_logs['DataHora'].str.split(' ').str[0], format="%d/%m/%Y", errors='coerce').dt.date
@@ -990,21 +1081,30 @@ else:
 
         cexp1, cexp2, cexp3 = st.columns(3)
         
-        if not df_qualitor.empty: 
-            excel_q = df_para_excel(df_qualitor)
-            cexp1.download_button("📥 BAIXAR BASE QUALITOR (EXCEL)", data=excel_q, file_name=f"Qualitor_{data_hoje().replace('/','-')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
-            
-        if not df_azix_data.empty: 
-            excel_a = df_para_excel(df_azix_data)
-            cexp2.download_button("📥 BAIXAR BASE AZIX/MKTP (EXCEL)", data=excel_a, file_name=f"Azix_{data_hoje().replace('/','-')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
-        
-        if not df_logs_periodo.empty: 
-            df_logs_export = df_logs_periodo.drop(columns=['DataReal'])
-            excel_logs = df_para_excel(df_logs_export)
-            nome_arquivo_logs = f"Logs_{data_inicio.strftime('%d%m')}_a_{data_fim.strftime('%d%m')}.xlsx"
-            cexp3.download_button("📥 BAIXAR LOGS FILTRADOS (EXCEL)", data=excel_logs, file_name=nome_arquivo_logs, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
-        else: 
-            cexp3.info("Sem logs para este período.")
+        with cexp1:
+            if not df_qualitor.empty:
+                if st.button("🛠️ Preparar Qualitor", key="preparar_excel_q", width="stretch"):
+                    st.session_state["excel_q"] = df_para_excel(df_qualitor)
+                if "excel_q" in st.session_state:
+                    st.download_button("📥 BAIXAR QUALITOR", data=st.session_state["excel_q"], file_name=f"Qualitor_{data_hoje().replace('/','-')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
+
+        with cexp2:
+            if not df_azix_data.empty:
+                if st.button("🛠️ Preparar Azix/MKTP", key="preparar_excel_a", width="stretch"):
+                    st.session_state["excel_a"] = df_para_excel(df_azix_data)
+                if "excel_a" in st.session_state:
+                    st.download_button("📥 BAIXAR AZIX/MKTP", data=st.session_state["excel_a"], file_name=f"Azix_{data_hoje().replace('/','-')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
+
+        with cexp3:
+            if not df_logs_periodo.empty:
+                if st.button("🛠️ Preparar Logs", key="preparar_excel_logs", width="stretch"):
+                    df_logs_export = df_logs_periodo.drop(columns=['DataReal'])
+                    st.session_state["excel_logs"] = df_para_excel(df_logs_export)
+                if "excel_logs" in st.session_state:
+                    nome_arquivo_logs = f"Logs_{data_inicio.strftime('%d%m')}_a_{data_fim.strftime('%d%m')}.xlsx"
+                    st.download_button("📥 BAIXAR LOGS", data=st.session_state["excel_logs"], file_name=nome_arquivo_logs, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
+            else:
+                st.info("Sem logs para este período.")
 
         # --- GERADOR DE RELATÓRIO EXECUTIVO (PDF) ---
         st.write("---")
@@ -1106,9 +1206,10 @@ else:
 
                             if st.button("🚀 SUBSTITUIR BASE QUALITOR", type="primary"):
                                 df_limpo = df_pronto.fillna("").replace(['nan', 'NaN', 'NaT', 'None'], "")
+                                limpar_reservas_aba(aba_chamados)
                                 aba_chamados.clear(); aba_chamados.append_rows([df_limpo.columns.tolist()] + df_limpo.values.tolist())
                                 registrar_log(usuario, "Importou Base Qualitor")
-                                st.success("Atualizado!"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                                st.success("Atualizado!"); invalidar_cache_base("qualitor"); st.rerun()
                         else: st.error("Erro: Colunas 'Chamado' ou 'PROCESSO' ausentes na planilha.")
                     
                     else:
@@ -1149,7 +1250,7 @@ else:
                                 aba_azix.clear(); aba_azix.append_rows([df_novos.columns.tolist()] + df_novos.values.tolist())
                             
                             registrar_log(usuario, f"Adicionou {len(df_novos)} Azix")
-                            st.success("Fila Azix atualizada!"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                            st.success("Fila Azix atualizada!"); invalidar_cache_base("azix"); st.rerun()
                 except Exception as e: st.error(f"Erro no robô: {e}")
 
         st.write("---")
@@ -1157,9 +1258,10 @@ else:
         if st.button("🧹 APAGAR TODOS OS CONCLUÍDOS (AZIX)"):
             if not df_azix_data.empty:
                 df_ativos = df_azix_data[df_azix_data['Status'] != 'Concluido'].copy()
+                limpar_reservas_aba(aba_azix)
                 aba_azix.clear()
                 aba_azix.append_rows([df_ativos.columns.tolist()] + df_ativos.values.tolist())
-                st.success("Faxina feita!"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                st.success("Faxina feita!"); invalidar_cache_base("azix"); st.rerun()
                 
         em_andamento = df_qualitor[df_qualitor['Status'] == 'Em Andamento'].copy() if not df_qualitor.empty else pd.DataFrame()
         if not em_andamento.empty:
@@ -1169,11 +1271,20 @@ else:
                 linha_trava = int(selecionado.split(" - ")[0].replace("L", ""))
                 col_dev, col_forcar = st.columns(2)
                 if col_dev.button("↩️ Devolver à Fila"):
-                    aba_chamados.update_cell(linha_trava, COL_STATUS, "Pendente"); aba_chamados.update_cell(linha_trava, COL_RESP, ""); aba_chamados.update_cell(linha_trava, COL_INICIO, "") 
-                    registrar_log(usuario, f"ADMIN: Devolveu linha {linha_trava}"); st.success("Devolvido!"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                    aba_chamados.batch_update([
+                        {"range": rowcol_to_a1(linha_trava, COL_STATUS), "values": [["Pendente"]]},
+                        {"range": rowcol_to_a1(linha_trava, COL_RESP), "values": [[""]]},
+                        {"range": rowcol_to_a1(linha_trava, COL_INICIO), "values": [[""]]},
+                    ])
+                    liberar_reserva(aba_chamados, linha_trava)
+                    registrar_log(usuario, f"ADMIN: Devolveu linha {linha_trava}"); st.success("Devolvido!"); invalidar_cache_base("qualitor"); st.rerun()
                 if col_forcar.button("🏁 Forçar Conclusão"):
-                    aba_chamados.update_cell(linha_trava, COL_STATUS, "Concluido"); aba_chamados.update_cell(linha_trava, COL_FIM, hora_texto()) 
-                    registrar_log(usuario, f"ADMIN: Forçou conclusão linha {linha_trava}"); st.success("Encerrado!"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                    aba_chamados.batch_update([
+                        {"range": rowcol_to_a1(linha_trava, COL_STATUS), "values": [["Concluido"]]},
+                        {"range": rowcol_to_a1(linha_trava, COL_FIM), "values": [[hora_texto()]]},
+                    ])
+                    liberar_reserva(aba_chamados, linha_trava)
+                    registrar_log(usuario, f"ADMIN: Forçou conclusão linha {linha_trava}"); st.success("Encerrado!"); invalidar_cache_base("qualitor"); st.rerun()
 
     # =========================================================================
     # 🧠 SQUAD 1: VISÃO DA CHARLENE (TRATATIVAS AZIX COM SLA E BUSCA ATIVA)
@@ -1184,7 +1295,7 @@ else:
         else:
             if df.empty or 'Status' not in df.columns:
                 st.info("📭 A base de dados Azix está vazia. O Gestor precisa importar os dados no Painel de Gestão.")
-                if st.button("🔄 Recarregar Fila"): st.cache_data.clear(); st.rerun()
+                if st.button("🔄 Recarregar Fila"): invalidar_cache_base("azix"); st.rerun()
             else:
                 meu_chamado = df[(df['Status'] == 'Em Andamento') & (df['Responsavel'] == usuario)]
                 if len(meu_chamado) > 0:
@@ -1227,45 +1338,60 @@ else:
                         c_fim, c_pausa = st.columns(2)
                         if c_fim.button("✅ FINALIZAR TRATATIVA", type="primary", width="stretch"): st.session_state['confirmar_azix'] = True; st.rerun()
                         if c_pausa.button("⏳ DEVOLVER À FILA", width="stretch"):
-                            aba_atual.update_cell(idx_linha, COL_STATUS, "Pendente - Retorno")
-                            aba_atual.update_cell(idx_linha, COL_RESP, "")
-                            aba_atual.update_cell(idx_linha, COL_INICIO, "") 
-                            
+                            atualizacoes = [
+                                {"range": rowcol_to_a1(idx_linha, COL_STATUS), "values": [["Pendente - Retorno"]]},
+                                {"range": rowcol_to_a1(idx_linha, COL_RESP), "values": [[""]]},
+                                {"range": rowcol_to_a1(idx_linha, COL_INICIO), "values": [[""]]},
+                            ]
                             if 'Validacao_Receita' in df.columns:
                                 col_val_idx = df.columns.tolist().index('Validacao_Receita') + 1
-                                aba_atual.update_cell(idx_linha, col_val_idx, escolha_validacao)
+                                atualizacoes.append({"range": rowcol_to_a1(idx_linha, col_val_idx), "values": [[escolha_validacao]]})
                             
                             if novo_assentamento:
                                 col_ass = df.columns.tolist().index('Assentamentos') + 1
-                                aba_atual.update_cell(idx_linha, col_ass, f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip())
+                                novo_historico = f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip()
+                                atualizacoes.append({"range": rowcol_to_a1(idx_linha, col_ass), "values": [[novo_historico]]})
+
+                            aba_atual.batch_update(atualizacoes)
+                            liberar_reserva(aba_atual, idx_linha)
                             
                             num_pedido = str(dados.get('Nº Pedido venda', dados.get('Dados', '')))
                             if 'ignorados_azix' not in st.session_state: st.session_state['ignorados_azix'] = []
                             st.session_state['ignorados_azix'].append(num_pedido)
                             
-                            registrar_log(usuario, f"Devolveu Azix à Fila ({num_pedido})"); st.cache_data.clear(); time.sleep(1.5); st.rerun()
+                            registrar_log(usuario, f"Devolveu Azix à Fila ({num_pedido})"); invalidar_cache_base("azix"); st.rerun()
                     else:
                         st.warning("Confirma a conclusão?")
                         cy, cn = st.columns(2)
                         if cy.button("👍 SIM, FINALIZAR"):
+                            atualizacoes = []
                             if 'Validacao_Receita' in df.columns:
                                 col_val_idx = df.columns.tolist().index('Validacao_Receita') + 1
-                                aba_atual.update_cell(idx_linha, col_val_idx, escolha_validacao)
+                                atualizacoes.append({"range": rowcol_to_a1(idx_linha, col_val_idx), "values": [[escolha_validacao]]})
 
                             if novo_assentamento:
                                 col_ass = df.columns.tolist().index('Assentamentos') + 1
-                                aba_atual.update_cell(idx_linha, col_ass, f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip())
+                                novo_historico = f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip()
+                                atualizacoes.append({"range": rowcol_to_a1(idx_linha, col_ass), "values": [[novo_historico]]})
                             
                             num_pedido = dados.get('Nº Pedido venda', dados.get('Dados', ''))
                             if is_marketplace(num_pedido):
-                                aba_atual.update_cell(idx_linha, COL_STATUS, "Aguardando Reivindicação"); aba_atual.update_cell(idx_linha, COL_RESP, "") 
+                                atualizacoes.extend([
+                                    {"range": rowcol_to_a1(idx_linha, COL_STATUS), "values": [["Aguardando Reivindicação"]]},
+                                    {"range": rowcol_to_a1(idx_linha, COL_RESP), "values": [[""]]},
+                                ])
                                 registrar_log(usuario, f"Azix para Mktp ({num_pedido})"); st.success("Encaminhado para Reivindicações!")
                             else:
-                                aba_atual.update_cell(idx_linha, COL_STATUS, "Concluido"); aba_atual.update_cell(idx_linha, COL_FIM, hora_texto()) 
+                                atualizacoes.extend([
+                                    {"range": rowcol_to_a1(idx_linha, COL_STATUS), "values": [["Concluido"]]},
+                                    {"range": rowcol_to_a1(idx_linha, COL_FIM), "values": [[hora_texto()]]},
+                                ])
                                 registrar_log(usuario, f"Concluiu Azix ({num_pedido})")
                                 verificar_meta_baloes(usuario, ranking_global, META_DIARIA)
-                            
-                            st.session_state['confirmar_azix'] = False; st.cache_data.clear(); time.sleep(1.5); st.rerun()
+
+                            aba_atual.batch_update(atualizacoes)
+                            liberar_reserva(aba_atual, idx_linha)
+                            st.session_state['confirmar_azix'] = False; invalidar_cache_base("azix"); st.rerun()
                         if cn.button("❌ NÃO"): st.session_state['confirmar_azix'] = False; st.rerun()
 
                 else:
@@ -1283,9 +1409,12 @@ else:
                                 alvo = fila_geral[fila_geral['Nº Pedido venda'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
                                 if not alvo.empty:
                                     item = alvo.iloc[0]; idx_linha = int(item.name) + 2
-                                    aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())
-                                    registrar_log(usuario, f"Busca Ativa: Pegou {pedido_busca}")
-                                    st.success("Encontrado! Puxando para sua tela..."); st.cache_data.clear(); time.sleep(1); st.rerun()
+                                    ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
+                                    if ok:
+                                        registrar_log(usuario, f"Busca Ativa: Pegou {pedido_busca}")
+                                        st.success("Encontrado! Puxando para sua tela..."); invalidar_cache_base("azix"); st.rerun()
+                                    else:
+                                        invalidar_cache_base("azix"); st.error(mensagem)
                                 else: st.error("Pedido não encontrado na fila livre, ou já está com outro operador.")
                             else: st.error("Coluna 'Nº Pedido venda' não encontrada na base.")
                         else: st.warning("Digite um número de pedido.")
@@ -1301,11 +1430,12 @@ else:
                                 item = fila_novos.iloc[0]
                                 idx_linha = int(item.name) + 2 
                                 num_pedido = str(item.get('Nº Pedido venda', ''))
-                                aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento")
-                                aba_atual.update_cell(idx_linha, COL_RESP, usuario)
-                                aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())         
-                                registrar_log(usuario, f"Pegou Pedido Azix ({num_pedido})")
-                                st.cache_data.clear(); time.sleep(1); st.rerun()
+                                ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
+                                if ok:
+                                    registrar_log(usuario, f"Pegou Pedido Azix ({num_pedido})")
+                                    invalidar_cache_base("azix"); st.rerun()
+                                else:
+                                    invalidar_cache_base("azix"); st.error(mensagem)
                         else: st.info("Nenhum pedido novo. Clique em 'Atualizar Fila' para checar.")
                     
                     with tab2:
@@ -1320,11 +1450,12 @@ else:
 
                                 idx_linha = int(item.name) + 2 
                                 num_pedido = str(item.get('Nº Pedido venda', ''))
-                                aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento")
-                                aba_atual.update_cell(idx_linha, COL_RESP, usuario)
-                                aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())         
-                                registrar_log(usuario, f"Pegou Retorno Azix ({num_pedido})")
-                                st.cache_data.clear(); time.sleep(1); st.rerun()
+                                ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
+                                if ok:
+                                    registrar_log(usuario, f"Pegou Retorno Azix ({num_pedido})")
+                                    invalidar_cache_base("azix"); st.rerun()
+                                else:
+                                    invalidar_cache_base("azix"); st.error(mensagem)
                         else: st.info("Nenhum retorno. Clique em 'Atualizar Fila' para checar.")
 
     # =========================================================================
@@ -1336,7 +1467,7 @@ else:
         else:
             if df.empty or 'Status' not in df.columns:
                 st.info("📭 A base de dados Azix está vazia. O Gestor precisa importar os dados no Painel de Gestão.")
-                if st.button("🔄 Recarregar Fila"): st.cache_data.clear(); st.rerun()
+                if st.button("🔄 Recarregar Fila"): invalidar_cache_base("azix"); st.rerun()
             else:
                 meu_chamado = df[(df['Status'] == 'Em Tratativa Mktp') & (df['Responsavel'] == usuario)]
                 if len(meu_chamado) > 0:
@@ -1371,14 +1502,20 @@ else:
                         st.warning("Confirma o encerramento?")
                         cy, cn = st.columns(2)
                         if cy.button("👍 SIM"):
+                            atualizacoes = [
+                                {"range": rowcol_to_a1(idx_linha, COL_STATUS), "values": [["Concluido"]]},
+                                {"range": rowcol_to_a1(idx_linha, COL_FIM), "values": [[hora_texto()]]},
+                            ]
                             if novo_assentamento:
                                 col_ass = df.columns.tolist().index('Assentamentos') + 1
-                                aba_atual.update_cell(idx_linha, col_ass, f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip())
-                            aba_atual.update_cell(idx_linha, COL_STATUS, "Concluido"); aba_atual.update_cell(idx_linha, COL_FIM, hora_texto()) 
+                                novo_historico = f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip()
+                                atualizacoes.append({"range": rowcol_to_a1(idx_linha, col_ass), "values": [[novo_historico]]})
+                            aba_atual.batch_update(atualizacoes)
+                            liberar_reserva(aba_atual, idx_linha)
                             registrar_log(usuario, f"Reivindicação Encerrada")
                             verificar_meta_baloes(usuario, ranking_global, META_DIARIA)
                             st.session_state['confirmar_mktp'] = False
-                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                            invalidar_cache_base("azix"); st.rerun()
                         if cn.button("❌ NÃO"): st.session_state['confirmar_mktp'] = False; st.rerun()
                 else:
                     fila = df[(df['Status'] == 'Aguardando Reivindicação')].copy()
@@ -1398,27 +1535,30 @@ else:
                                 alvo = fila[fila['Nº Pedido venda'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
                                 if not alvo.empty:
                                     item = alvo.iloc[0]; idx_linha = int(item.name) + 2
-                                    aba_atual.update_cell(idx_linha, COL_STATUS, "Em Tratativa Mktp"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())
-                                    registrar_log(usuario, f"Busca Ativa Mktp: Pegou {pedido_busca}")
-                                    st.success("Encontrado! Puxando para sua tela..."); st.cache_data.clear(); time.sleep(1); st.rerun()
+                                    ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Tratativa Mktp", COL_STATUS, COL_RESP, COL_INICIO)
+                                    if ok:
+                                        registrar_log(usuario, f"Busca Ativa Mktp: Pegou {pedido_busca}")
+                                        st.success("Encontrado! Puxando para sua tela..."); invalidar_cache_base("azix"); st.rerun()
+                                    else:
+                                        invalidar_cache_base("azix"); st.error(mensagem)
                                 else: st.error("Pedido não encontrado na sua fila de reivindicações.")
                             else: st.error("Coluna 'Nº Pedido venda' não encontrada na base.")
                         else: st.warning("Digite um número de pedido.")
                     st.write("---")
 
                     st.metric("🚨 Reivindicações", len(fila))
-                    if st.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
+                    if st.button("🔄 Atualizar Fila"): invalidar_cache_base("azix"); st.rerun()
                     if len(fila) > 0:
                         if st.button("📥 REIVINDICAR PRÓXIMO", type="primary", width="stretch"):
                             item = fila.iloc[0]
                             idx_linha = int(item.name) + 2 
                             num_pedido = str(item.get('Nº Pedido venda', '')) # Puxa o número do pedido
-                            
-                            aba_atual.update_cell(idx_linha, COL_STATUS, "Em Tratativa Mktp")
-                            aba_atual.update_cell(idx_linha, COL_RESP, usuario)
-                            aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())         
-                            registrar_log(usuario, f"Pegou Mktp ({num_pedido})") # Grava com o número!
-                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                            ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Tratativa Mktp", COL_STATUS, COL_RESP, COL_INICIO)
+                            if ok:
+                                registrar_log(usuario, f"Pegou Mktp ({num_pedido})")
+                                invalidar_cache_base("azix"); st.rerun()
+                            else:
+                                invalidar_cache_base("azix"); st.error(mensagem)
                     else:  st.info("Fila vazia. Clique em 'Atualizar Fila' para checar.")
 
     # =========================================================================
@@ -1430,7 +1570,7 @@ else:
         else:
             if df.empty or 'Status' not in df.columns:
                 st.info("📭 A base de dados Ativas está vazia.")
-                if st.button("🔄 Recarregar Fila"): st.cache_data.clear(); st.rerun()
+                if st.button("🔄 Recarregar Fila"): invalidar_cache_base("ativas"); st.rerun()
             else:
                 meu_chamado = df[(df['Status'] == 'Em Andamento') & (df['Responsavel'] == usuario)]
                 
@@ -1469,16 +1609,20 @@ else:
                         st.warning("Confirma a conclusão?")
                         cy, cn = st.columns(2)
                         if cy.button("👍 SIM"):
+                            atualizacoes = [
+                                {"range": rowcol_to_a1(idx_linha, COL_STATUS), "values": [["Concluido"]]},
+                                {"range": rowcol_to_a1(idx_linha, COL_FIM), "values": [[hora_texto()]]},
+                            ]
                             if novo_assentamento:
                                 col_ass = df.columns.tolist().index('Assentamentos') + 1
-                                aba_atual.update_cell(idx_linha, col_ass, f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip())
-                            
-                            aba_atual.update_cell(idx_linha, COL_STATUS, "Concluido")
-                            aba_atual.update_cell(idx_linha, COL_FIM, hora_texto()) 
+                                novo_historico = f"{historico_atual}\n[{hora_texto()}] {usuario}: {novo_assentamento}".strip()
+                                atualizacoes.append({"range": rowcol_to_a1(idx_linha, col_ass), "values": [[novo_historico]]})
+                            aba_atual.batch_update(atualizacoes)
+                            liberar_reserva(aba_atual, idx_linha)
                             registrar_log(usuario, f"Concluiu Ativa ({num_pedido})")
                             verificar_meta_baloes(usuario, ranking_global, META_DIARIA)
                             st.session_state['confirmar_ativa'] = False
-                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                            invalidar_cache_base("ativas"); st.rerun()
                         if cn.button("❌ NÃO"): st.session_state['confirmar_ativa'] = False; st.rerun()
                 
                 # --- TELA DE FILA LIVRE ---
@@ -1496,19 +1640,19 @@ else:
                         fila = fila.sort_values(by='Prioridade_Num', ascending=True)
 
                     st.metric("🚨 Na Sua Fila", len(fila))
-                    if st.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
+                    if st.button("🔄 Atualizar Fila"): invalidar_cache_base("ativas"); st.rerun()
                     
                     if len(fila) > 0:
                         if st.button("📥 PUXAR PRÓXIMO (PRIORIDADE)", type="primary", width="stretch"):
                             item = fila.iloc[0] # Pega sempre o topo da lista (Prioridade 1)
                             idx_linha = int(item.name) + 2 
                             num_pedido = str(item.get('Pedido', ''))
-                            
-                            aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento")
-                            aba_atual.update_cell(idx_linha, COL_RESP, usuario)
-                            aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())         
-                            registrar_log(usuario, f"Pegou Ativa ({num_pedido})") 
-                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                            ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
+                            if ok:
+                                registrar_log(usuario, f"Pegou Ativa ({num_pedido})")
+                                invalidar_cache_base("ativas"); st.rerun()
+                            else:
+                                invalidar_cache_base("ativas"); st.error(mensagem)
                     else:
                         st.success("Fila zerada para as suas habilidades!")
                         st.info("Fila zerada. Clique em 'Atualizar Fila' para checar.")
@@ -1523,7 +1667,7 @@ else:
             
             if df.empty or 'Status' not in df.columns:
                 st.info("📭 A base de dados Qualitor está vazia. O Gestor precisa importar os dados.")
-                if st.button("🔄 Recarregar Fila"): st.cache_data.clear(); st.rerun()
+                if st.button("🔄 Recarregar Fila"): invalidar_cache_base("qualitor"); st.rerun()
             else:
                 meu_chamado = df[(df['Status'] == 'Em Andamento') & (df['Responsavel'] == usuario)]
                 
@@ -1550,7 +1694,7 @@ else:
                             if ia_ativa and historico:
                                 with st.spinner("Processando os dados..."):
                                     try:
-                                        resp = modelo_oraculo.generate_content(f"Analise este histórico de atendimento e devolva os 3 pontos mais importantes (causa, situação atual e o que o cliente quer). Seja extremamente resumido:\n\n{historico}")
+                                        resp = gerar_conteudo_gemini(f"Analise este histórico de atendimento e devolva os 3 pontos mais importantes (causa, situação atual e o que o cliente quer). Seja extremamente resumido:\n\n{historico}")
                                         st.info(resp.text)
                                     except Exception as e: st.error(f"Erro na IA: {e}")
                             elif not ia_ativa: st.error("IA desligada. Verifique a chave de API.")
@@ -1565,12 +1709,16 @@ else:
                         st.warning("Confirma a conclusão?")
                         cy, cn = st.columns(2)
                         if cy.button("👍 SIM"):
-                            aba_chamados.update_cell(int(meu_chamado.index[0])+2, COL_STATUS, "Concluido")
-                            aba_chamados.update_cell(int(meu_chamado.index[0])+2, COL_FIM, hora_texto()) 
+                            idx_linha = int(meu_chamado.index[0]) + 2
+                            aba_chamados.batch_update([
+                                {"range": rowcol_to_a1(idx_linha, COL_STATUS), "values": [["Concluido"]]},
+                                {"range": rowcol_to_a1(idx_linha, COL_FIM), "values": [[hora_texto()]]},
+                            ])
+                            liberar_reserva(aba_chamados, idx_linha)
                             registrar_log(usuario, f"Finalizou {num}")
                             verificar_meta_baloes(usuario, ranking_global, META_DIARIA)
                             st.session_state['confirmar'] = False
-                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                            invalidar_cache_base("qualitor"); st.rerun()
                         if cn.button("❌ NÃO"): st.session_state['confirmar'] = False; st.rerun()
                 else:
                     fila = df[(df['Status'] == 'Pendente') & (df['Responsavel'] == "")].copy()
@@ -1585,9 +1733,12 @@ else:
                             alvo = fila[fila['Dados'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
                             if not alvo.empty:
                                 item = alvo.iloc[0]; idx_linha = int(item.name) + 2
-                                aba_atual.update_cell(idx_linha, COL_STATUS, "Em Andamento"); aba_atual.update_cell(idx_linha, COL_RESP, usuario); aba_atual.update_cell(idx_linha, COL_INICIO, hora_texto())
-                                registrar_log(usuario, f"Busca Ativa Qualitor: Pegou {pedido_busca}")
-                                st.success("Encontrado! Puxando para sua tela..."); st.cache_data.clear(); time.sleep(1); st.rerun()
+                                ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
+                                if ok:
+                                    registrar_log(usuario, f"Busca Ativa Qualitor: Pegou {pedido_busca}")
+                                    st.success("Encontrado! Puxando para sua tela..."); invalidar_cache_base("qualitor"); st.rerun()
+                                else:
+                                    invalidar_cache_base("qualitor"); st.error(mensagem)
                             else: st.error("Chamado não encontrado na fila permitida ou já em atendimento.")
                         else: st.warning("Digite um número de chamado.")
                     st.write("---")
@@ -1595,7 +1746,7 @@ else:
                     qtd = len(fila)
                     c_f, c_r = st.columns([3,1])
                     c_f.metric("Sua Fila Qualitor", qtd)
-                    if c_r.button("🔄 Atualizar Fila"): st.cache_data.clear(); st.rerun()
+                    if c_r.button("🔄 Atualizar Fila"): invalidar_cache_base("qualitor"); st.rerun()
                     
                     if qtd > 0:
                         # ✅ O ÚNICO E VERDADEIRO BOTÃO!
@@ -1607,12 +1758,12 @@ else:
                             item = fila.iloc[0]
                             idx_linha = int(item.name) + 2 
                             num_chamado = str(item.get('Dados', '')).replace('.0', '') # Puxa o número do chamado
-                            
-                            aba_chamados.update_cell(idx_linha, COL_STATUS, "Em Andamento")
-                            aba_chamados.update_cell(idx_linha, COL_RESP, usuario)
-                            aba_chamados.update_cell(idx_linha, COL_INICIO, hora_texto())         
-                            registrar_log(usuario, f"Pegou chamado Qualitor ({num_chamado})") # Grava com o número!
-                            st.cache_data.clear(); time.sleep(1); st.rerun()
+                            ok, mensagem = reservar_atendimento(aba_chamados, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
+                            if ok:
+                                registrar_log(usuario, f"Pegou chamado Qualitor ({num_chamado})")
+                                invalidar_cache_base("qualitor"); st.rerun()
+                            else:
+                                invalidar_cache_base("qualitor"); st.error(mensagem)
                     else: 
                         st.info("Nenhum chamado. Clique em 'Atualizar Fila' para checar.")
 
@@ -1650,7 +1801,7 @@ else:
                 if ia_ativa:
                     try:
                         with open("regras_operacao.txt", "r", encoding="utf-8") as f:
-                            resposta = modelo_oraculo.generate_content(f"Seja o Oráculo do SAC Frigelar. Responda baseado no manual:\n{f.read()}\n\nPergunta: {pergunta}")
+                            resposta = gerar_conteudo_gemini(f"Seja o Oráculo do SAC Frigelar. Responda baseado no manual:\n{f.read()}\n\nPergunta: {pergunta}")
                             st.info(resposta.text)
                     except Exception as e: st.error(f"Erro: {e}")
                 else: st.error(f"IA não configurada.")
