@@ -1051,13 +1051,17 @@ else:
             trataram_total = aceitaram + reprovaram + aguardando + sla_esgotado
             
             # Cards na tela
-            cards = st.columns(6)
-            cards[0].metric("📥 Base Total (Entraram)", total_entraram)
-            cards[1].metric("⚙️ Já Tratados", trataram_total)
-            cards[2].metric("✅ Aceitaram", aceitaram)
-            cards[3].metric("❌ Reprovaram", reprovaram)
-            cards[4].metric("⏳ Aguardando", aguardando)
-            cards[5].metric("⏰ SLA Esgotado", sla_esgotado)
+            linha_1 = st.columns(3)
+            linha_1[0].metric("📥 Base Total (Entraram)", total_entraram)
+            linha_1[1].metric("⚙️ Já Tratados", trataram_total)
+            linha_1[2].metric("✅ Aceitaram", aceitaram)
+
+            # Segunda linha de indicadores
+            linha_2 = st.columns(3)
+
+            linha_2[0].metric("❌ Reprovaram", reprovaram)
+            linha_2[1].metric("⏳ Aguardando", aguardando)
+            linha_2[2].metric("⏰ SLA Esgotado", sla_esgotado)
             
             # Gráfico de Validação
             if trataram_total > 0:
