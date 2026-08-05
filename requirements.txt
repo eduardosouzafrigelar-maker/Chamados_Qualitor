@@ -1,5 +1,6 @@
 streamlit==1.60.0
 starlette==0.50.0
+protobuf==5.29.3
 pandas==3.0.5
 gspread==6.2.1
 pytz==2026.3.post1
