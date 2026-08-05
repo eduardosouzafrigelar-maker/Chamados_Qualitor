@@ -1051,7 +1051,7 @@ else:
             trataram_total = aceitaram + reprovaram + aguardando + sla_esgotado
             
             # Cards na tela
-            c_v1, c_v2, c_v3, c_v4, c_v5 = st.columns(5)
+            c_v1, c_v2, c_v3, c_v4, c_v5 = st.columns(6)
             c_v1.metric("📥 Base Total (Entraram)", total_entraram)
             c_v2.metric("⚙️ Já Tratados", trataram_total)
             c_v3.metric("✅ Aceitaram", aceitaram)
