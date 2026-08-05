@@ -1045,9 +1045,10 @@ else:
             aceitaram = len(df_val[df_val['Validacao_Receita'] == 'Cliente Aceitou'])
             reprovaram = len(df_val[df_val['Validacao_Receita'] == 'Cliente Negou'])
             aguardando = len(df_val[df_val['Validacao_Receita'] == 'Aguardando Cliente'])
+            sla_esgotado = len(df_val[df_val['Validacao_Receita'] == 'SLA Esgotado'])
             
             # 2. Quantos trataram (Soma de todos que já ganharam um status diferente de vazio/Não Tratado)
-            trataram_total = aceitaram + reprovaram + aguardando
+            trataram_total = aceitaram + reprovaram + aguardando + sla_esgotado
             
             # Cards na tela
             c_v1, c_v2, c_v3, c_v4, c_v5 = st.columns(5)
@@ -1056,12 +1057,13 @@ else:
             c_v3.metric("✅ Aceitaram", aceitaram)
             c_v4.metric("❌ Reprovaram", reprovaram)
             c_v5.metric("⏳ Aguardando", aguardando)
+            c_v6.metric("⏰ SLA Esgotado", sla_esgotado)
             
             # Gráfico de Validação
             if trataram_total > 0:
                 dados_grafico_val = pd.DataFrame({
-                    'Status': ['Aceitou', 'Negou', 'Aguardando'],
-                    'Quantidade': [aceitaram, reprovaram, aguardando]
+                    'Status': ['Aceitou', 'Negou', 'Aguardando', 'SLA Esgotado'],
+                    'Quantidade': [aceitaram, reprovaram, aguardando, sla_esgotado]
                 }).set_index('Status')
                 st.bar_chart(dados_grafico_val, width="stretch", color="#d97706")
         else:
@@ -1325,7 +1327,7 @@ else:
                     st.markdown("#### 🏛️ Validação Endereço Receita")
                     st.caption("Preencha para gerar as métricas de divergência de endereço.")
                     val_atual = str(dados.get('Validacao_Receita', 'Não Tratado'))
-                    opcoes_val = ["SLA Esgotado", "Cliente Aceitou", "Cliente Negou", "Aguardando Cliente"]
+                    opcoes_val = ["Não Tratado", "Cliente Aceitou", "Cliente Negou", "Aguardando Cliente", "SLA Esgotado"]
                     idx_val = opcoes_val.index(val_atual) if val_atual in opcoes_val else 0
                     escolha_validacao = st.radio("Selecione o status desta tratativa:", opcoes_val, index=idx_val, horizontal=True)
 
