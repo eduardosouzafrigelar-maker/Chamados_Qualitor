@@ -1268,6 +1268,13 @@ else:
                 aba_azix.clear()
                 aba_azix.append_rows([df_ativos.columns.tolist()] + df_ativos.values.tolist())
                 st.success("Faxina feita!"); invalidar_cache_base("azix"); st.rerun()
+        if st.button(
+            "🔓 LIMPAR RESERVAS ANTIGAS DO AZIX",
+            key="limpar_reservas_antigas_azix"):
+            limpar_reservas_aba(aba_azix)
+            invalidar_cache_base("azix")
+            st.success("✅ Reservas antigas do Azix removidas!")
+            st.rerun()
                 
         em_andamento = df_qualitor[df_qualitor['Status'] == 'Em Andamento'].copy() if not df_qualitor.empty else pd.DataFrame()
         if not em_andamento.empty:
@@ -1291,6 +1298,8 @@ else:
                     ])
                     liberar_reserva(aba_chamados, linha_trava)
                     registrar_log(usuario, f"ADMIN: Forçou conclusão linha {linha_trava}"); st.success("Encerrado!"); invalidar_cache_base("qualitor"); st.rerun()
+                
+
 
     # =========================================================================
     # 🧠 SQUAD 1: VISÃO DA CHARLENE (TRATATIVAS AZIX COM SLA E BUSCA ATIVA)
