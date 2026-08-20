@@ -120,13 +120,13 @@ def conectar_e_abrir_abas():
             try:
                 sh = client.open("Chamados_Qualitor") 
                 abas = sh.worksheets()
-                if len(abas) >= 2:
-                    aba_chamados = abas[0] if len(abas) > 0 else None
-                    aba_users = abas[1] if len(abas) > 1 else None
-                    aba_logs = abas[2] if len(abas) > 2 else None
-                    aba_transp = abas[3] if len(abas) > 3 else None
-                    aba_azix = abas[4] if len(abas) > 4 else None 
-                    aba_ativas = abas[5] if len(abas) > 5 else None 
+                if len(abas) >= 6:
+                    aba_chamados = sh.worksheet("Chamados")
+                    aba_users = sh.worksheet("Colaboradores")
+                    aba_logs = sh.worksheet("Registros")
+                    aba_transp = sh.worksheet("Transportadoras")
+                    aba_azix = sh.worksheet("Azix")
+                    aba_ativas = sh.worksheet("Ativas_Mktp") 
                     
                     return sh, aba_chamados, aba_users, aba_logs, aba_transp, aba_azix, aba_ativas
                 else: erro_real = "A planilha tem menos de 2 abas visíveis."
