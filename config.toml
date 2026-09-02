@@ -1,0 +1,24 @@
+[server]
+fileWatcherType = "none"
+
+[theme]
+base = "light"
+primaryColor = "#075BB6"
+backgroundColor = "#F3F6FB"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#172D49"
+font = "sans-serif"
+baseFontSize = 16
+baseRadius = "0.65rem"
+buttonRadius = "0.5rem"
+borderColor = "#DCE5EF"
+showWidgetBorder = true
+showSidebarBorder = false
+
+[theme.sidebar]
+primaryColor = "#85C6FF"
+backgroundColor = "#073A72"
+secondaryBackgroundColor = "#12497F"
+textColor = "#F1F6FD"
+borderColor = "#426993"
+

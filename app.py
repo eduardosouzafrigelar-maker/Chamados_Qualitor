@@ -1,4 +1,5 @@
 import streamlit as st
+from html import escape as html_escape
 import pandas as pd
 import gspread
 from datetime import datetime, timedelta
@@ -50,7 +51,7 @@ else:
     db = db_resultado
 
 # --- CONFIGURAÇÃO INICIAL ---
-st.set_page_config(page_title="Esteira Qualitor", page_icon="🎫", layout="wide")
+st.set_page_config(page_title="Central de Operações | Frigelar", page_icon="❄️", layout="wide")
 
 # --- 👑 ADMINISTRAÇÃO E SQUADS ---
 ADMINS = ["Eduardo", "EduardoSouza", "Gestor", "Lopes", "eduardosouza", "biancamoura", "andreacastro"] 
@@ -61,6 +62,104 @@ SQUAD_ATIVAS = ["Ruan Athaide", "Camila Garcia", "Marlise Borges", "Daiane Habow
 
 # --- META DIÁRIA E CELEBRAÇÃO ---
 META_DIARIA = 50
+
+# Classificação apenas na importação Qualitor; não recalcula o aging diariamente.
+ETAPA_AGING_QUALITOR = "Em aberto > 20 dias úteis"
+
+
+def preparar_importacao_qualitor(df_bruto):
+    """Prepara a base em memória, sem consultar ou alterar planilhas/reservas."""
+    obrigatorias = ['PROCESSO', 'Chamado', 'Aging abertura']
+    ausentes = [coluna for coluna in obrigatorias if coluna not in df_bruto.columns]
+    if ausentes:
+        raise ValueError(
+            "Importação Qualitor não realizada. Colunas ausentes: "
+            + ", ".join(ausentes)
+            + ". Recalcule e salve a planilha antes de enviar."
+        )
+
+    processo_bruto = df_bruto['PROCESSO'].fillna('').astype(str).str.strip()
+    # Aceita o texto com hífen, como na base atual, e também a grafia antiga.
+    ignorar = processo_bruto.str.contains(
+        r"SOLICITANTE\s*[-–—]?\s*ATUALIZAR INFORMAÇÕES",
+        case=False,
+        na=False,
+        regex=True,
+    )
+    df_filtrado = df_bruto.loc[~ignorar].copy()
+    processo = processo_bruto.loc[df_filtrado.index]
+    processo_normalizado = processo.str.replace(r'\s+', ' ', regex=True).str.upper()
+
+    # O valor é o resultado salvo no Excel, não uma nova contagem de datas.
+    aging = pd.to_numeric(
+        df_filtrado['Aging abertura'].astype(str).str.strip().str.replace(',', '.', regex=False),
+        errors='coerce',
+    )
+    aging_invalido = aging.isna() | ~np.isfinite(aging) | aging.lt(0)
+    if aging_invalido.any():
+        raise ValueError(
+            f"Importação Qualitor não realizada: {int(aging_invalido.sum())} "
+            "registro(s) com 'Aging abertura' vazio, inválido ou negativo. "
+            "Recalcule e salve o Excel; nenhum chamado foi substituído."
+        )
+
+    de_para = {
+        "(SAC) - ARREPENDIMENTO V3": "Arrependimento",
+        "(SAC) - CANCELAMENTO V3": "Cancelamento de pedido",
+        "(SAC) - ATRASO V3": "Atraso de Entrega",
+        "(SAC) - PRODUTO ERRADO V3": "Produto Errado",
+        "(SAC) - AVARIA V3": "Avaria",
+        "(SAC) - ESTORNADOS": "Estornados",
+        "(SAC) - EXTRAVIO V6": "Extravio",
+    }
+    motivo_original = processo_normalizado.map(de_para).fillna(processo)
+    is_estornados = processo_normalizado.eq('(SAC) - ESTORNADOS')
+    is_mktp = pd.Series(False, index=df_filtrado.index)
+    if 'Etapa' in df_filtrado.columns:
+        is_mktp = df_filtrado['Etapa'].astype(str).str.contains(
+            r'REEMBOLSO\s+MKTP', case=False, na=False, regex=True
+        )
+    is_prio = pd.Series(False, index=df_filtrado.index)
+    if 'Lista' in df_filtrado.columns:
+        is_prio = df_filtrado['Lista'].astype(str).str.contains(
+            'PRIORIDADE 1', case=False, na=False, regex=False
+        )
+
+    etapa = motivo_original.copy()
+    protegidos = is_estornados | is_mktp
+    etapa.loc[is_prio & ~protegidos] = 'Prioridade'
+    etapa.loc[aging.gt(20) & ~protegidos] = ETAPA_AGING_QUALITOR
+    # Mantém a precedência de Reembolso MKTP já existente no importador.
+    etapa.loc[is_mktp] = 'Reembolso MKTP'
+    sla = pd.Series('Normal ✅', index=df_filtrado.index)
+    sla.loc[is_prio] = '🔥 Prioridade (Vence Hoje)'
+
+    # Preserva as oito colunas atuais e acrescenta os metadados ao final.
+    df_novo = pd.DataFrame({
+        'ID': '',
+        'Dados': df_filtrado['Chamado'].astype(str).str.replace(r'\.0$', '', regex=True),
+        'Status': 'Pendente',
+        'Etapa': etapa,
+        'SLA': sla,
+        'Responsavel': '',
+        'Inicio': '',
+        'Data_Conclusao': '',
+        'Motivo_Original': motivo_original,
+        'Aging_Abertura': aging,
+    }, index=df_filtrado.index)
+    df_pronto = df_novo.drop_duplicates(subset=['Dados'])
+    na_nova_etapa = df_pronto['Etapa'].eq(ETAPA_AGING_QUALITOR)
+    resumo = {
+        'lidos': len(df_bruto),
+        'ignorados_solicitante': int(ignorar.sum()),
+        'duplicados': len(df_novo) - len(df_pronto),
+        'importados': len(df_pronto),
+        'aging_maior_20': int(na_nova_etapa.sum()),
+        'aging_prioritarios': int((na_nova_etapa & df_pronto['SLA'].str.contains('Prioridade')).sum()),
+        'estornados': int(df_pronto['Etapa'].eq('Estornados').sum()),
+        'reembolso_mktp': int(df_pronto['Etapa'].eq('Reembolso MKTP').sum()),
+    }
+    return df_pronto, resumo
 
 def verificar_meta_baloes(usuario_atual, df_ranking, meta):
     feitos_hoje = 0
@@ -431,24 +530,156 @@ if 'soltar_baloes' in st.session_state and st.session_state['soltar_baloes']:
 
 if 'tema_escolhido' not in st.session_state: st.session_state['tema_escolhido'] = "Padrão"
 
+# --- IDENTIDADE VISUAL: somente apresentação, sem leituras externas ---
+def aplicar_visual_frigelar(tema="Padrão"):
+    paletas = {
+        "Padrão": ("#f3f6fb", "#ffffff", "#172d49", "#576b82", "#dce5ef", "#075bb6", "#eaf2fc"),
+        "Dark Night": ("#0f1927", "#19293c", "#edf3fb", "#b5c4d7", "#34465d", "#3281df", "#243d5d"),
+        "Hacker Matrix": ("#0a1710", "#10281b", "#d8f5df", "#add2b9", "#315842", "#168347", "#19442b"),
+        "Rosa Fofo": ("#fff4f8", "#ffffff", "#51263c", "#825c70", "#ecd6e1", "#b22f70", "#fce4ef"),
+    }
+    fundo, painel, texto, suave, borda, azul, destaque = paletas.get(tema, paletas["Padrão"])
+    css = """
+    <style>
+    :root { --frg-bg:__BG__; --frg-panel:__PANEL__; --frg-text:__TEXT__;
+      --frg-muted:__MUTED__; --frg-border:__BORDER__; --frg-primary:__PRIMARY__; --frg-soft:__SOFT__; }
+    .stApp { background:var(--frg-bg); color:var(--frg-text); }
+    [data-testid="stHeader"] { background:var(--frg-bg); }
+    [data-testid="stMainBlockContainer"], .main .block-container {
+      max-width:1320px; padding-top:2.4rem; padding-bottom:2rem; }
+    [data-testid="stMain"] h1, [data-testid="stMain"] h2, [data-testid="stMain"] h3,
+    [data-testid="stMain"] label { color:var(--frg-text); }
+    [data-testid="stMain"] h1 { font-size:2rem; letter-spacing:-.04em; }
+    [data-testid="stMain"] h2 { font-size:1.4rem; letter-spacing:-.02em; }
+    [data-testid="stMain"] h3 { font-size:1.15rem; }
+    [data-testid="stCaptionContainer"] { color:var(--frg-muted); }
+    [data-testid="stMain"] hr { margin:.75rem 0; border-color:var(--frg-border); }
+    [data-testid="stMain"] [data-testid="stForm"],
+    [data-testid="stMain"] [data-testid="stExpander"] {
+      background:var(--frg-panel); border-color:var(--frg-border); border-radius:12px; }
+    [data-testid="stMain"] [data-testid="stMetric"] {
+      background:var(--frg-panel); border:1px solid var(--frg-border); border-radius:12px; padding:1rem; }
+    [data-testid="stMain"] [data-testid="stMetricValue"] { color:var(--frg-text); }
+    [data-testid="stMain"] [data-testid="stButton"] button,
+    [data-testid="stMain"] [data-testid="stFormSubmitButton"] button,
+    [data-testid="stMain"] [data-testid="stDownloadButton"] button {
+      min-height:2.7rem; border-radius:8px; font-weight:600; }
+    [data-testid="stMain"] button[kind="primary"] { background:var(--frg-primary); color:white; border-color:var(--frg-primary); }
+    [data-testid="stMain"] button[kind="secondary"] {
+      background:var(--frg-panel); color:var(--frg-text); border-color:var(--frg-border); }
+    [data-testid="stMain"] input, [data-testid="stMain"] textarea {
+      color:var(--frg-text); background:var(--frg-panel); }
+    [data-testid="stMain"] [data-baseweb="input"],
+    [data-testid="stMain"] [data-baseweb="base-input"],
+    [data-testid="stMain"] [data-baseweb="select"] > div,
+    [data-testid="stMain"] [data-baseweb="textarea"] {
+      color:var(--frg-text); background:var(--frg-panel); border-color:var(--frg-border); }
+    [data-testid="stSidebar"] { background:#073a72; color:#f1f6fd; }
+    [data-testid="stSidebar"] [data-testid="stSidebarContent"] { padding-top:1rem; }
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] label { color:#f1f6fd; }
+    [data-testid="stSidebar"] [data-testid="stCaptionContainer"] { color:#c7d8ed; }
+    [data-testid="stSidebar"] hr { border-color:#355c89; margin:.75rem 0; }
+    [data-testid="stSidebar"] [data-testid="stExpander"] { border-color:#426993; }
+    [data-testid="stSidebar"] [data-testid="stButton"] button {
+      border-color:#456c98; background:#12497f; color:#f1f6fd; border-radius:7px; }
+    [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"] {
+      background:#eaf3ff; color:#073a72; border-color:#eaf3ff; }
+    .st-key-frg-navigation [role="radiogroup"] { gap:.3rem; }
+    .st-key-frg-navigation label[data-baseweb="radio"] {
+      width:100%; margin:0; padding:.65rem .7rem; border-radius:8px; }
+    .st-key-frg-navigation label[data-baseweb="radio"]:has(input:checked) { background:#fff; color:#073a72; }
+    .st-key-frg-navigation label[data-baseweb="radio"]:has(input:checked) p { color:#073a72; font-weight:600; }
+    .st-key-frg-navigation label[data-baseweb="radio"] > div:first-child { display:none; }
+    .frg-brand { padding:.2rem 0 .9rem; }
+    .frg-brand strong { color:#fff; font-size:1.85rem; letter-spacing:-.07em; }
+    .frg-brand p { color:#c7d8ed; margin:.1rem 0 0; font-size:.82rem; }
+    .frg-user { margin:.75rem 0; color:#fff; overflow-wrap:anywhere; }
+    .frg-user span { display:block; color:#c7d8ed; font-size:.8rem; margin-top:.15rem; }
+    .frg-sidebar-status { padding:.65rem .8rem; background:#12497f; border-radius:8px; margin:.3rem 0 .75rem; color:#f1f6fd; }
+    .frg-hero { display:flex; gap:1rem; justify-content:space-between; align-items:center; margin:0 0 1.25rem; flex-wrap:wrap; }
+    .frg-hero h1 { margin:0; padding:0; font-size:2rem; color:var(--frg-text); line-height:1.2; }
+    .frg-hero p { margin:.5rem 0 0; color:var(--frg-muted); font-size:.95rem; }
+    .frg-eyebrow { text-transform:uppercase; letter-spacing:.12em; font-size:.7rem; color:var(--frg-muted); margin-bottom:.5rem; }
+    .frg-status { display:inline-block; background:var(--frg-soft); color:var(--frg-text); border-radius:18px; padding:.45rem .85rem; font-size:.85rem; }
+    .frg-stat { background:var(--frg-panel); border:1px solid var(--frg-border); border-radius:12px; padding:1.2rem; }
+    .frg-stat-label { color:var(--frg-muted); font-size:.9rem; margin-bottom:.45rem; }
+    .frg-stat-value { font-size:2.2rem; font-weight:650; color:var(--frg-text); line-height:1.25; font-variant-numeric:tabular-nums; }
+    .frg-stat-note { color:var(--frg-muted); font-size:.85rem; margin-top:.55rem; overflow-wrap:anywhere; }
+    .frg-stat-inline { border:0; padding:0; background:transparent; }
+    .frg-progress { height:8px; background:var(--frg-border); border-radius:8px; overflow:hidden; margin:.9rem 0 .6rem; }
+    .frg-progress-fill { height:100%; background:var(--frg-primary); }
+    .frg-progress-note { font-size:.82rem; color:var(--frg-muted); }
+    [class*="st-key-frg-queue"], [class*="st-key-frg-goal"], [class*="st-key-frg-details"],
+    .st-key-frg-import { background:var(--frg-panel); border-radius:12px; }
+    .frg-login-brand { text-align:center; margin-bottom:1rem; }
+    .frg-login-brand img { max-width:185px; max-height:75px; object-fit:contain; }
+    .frg-login-brand strong { display:block; font-size:2rem; letter-spacing:-.05em; color:#075bb6; }
+    .frg-login-brand h1 { font-size:1.7rem!important; color:#172d49!important; margin-top:1rem; }
+    .frg-login-brand p { color:#576b82; font-size:.95rem; }
+    @media(max-width:768px) {
+      [data-testid="stMainBlockContainer"], .main .block-container { padding:1.5rem 1rem; }
+      .frg-hero h1 { font-size:1.65rem; }
+      .frg-stat-value { font-size:1.85rem; }
+    }
+    </style>
+    """
+    for marcador, valor in zip(
+        ["__BG__", "__PANEL__", "__TEXT__", "__MUTED__", "__BORDER__", "__PRIMARY__", "__SOFT__"],
+        [fundo, painel, texto, suave, borda, azul, destaque],
+    ):
+        css = css.replace(marcador, valor)
+    st.markdown(css, unsafe_allow_html=True)
+
+
+def renderizar_cabecalho(titulo, descricao, operacao, status):
+    status_texto = "Disponível" if status == "Disponivel" else str(status)
+    st.markdown(
+        '<div class="frg-hero"><div><div class="frg-eyebrow">Central de operações · '
+        + html_escape(str(operacao)) + '</div><h1>' + html_escape(str(titulo))
+        + '</h1><p>' + html_escape(str(descricao)) + '</p></div><span class="frg-status">'
+        + html_escape(status_texto) + '</span></div>', unsafe_allow_html=True,
+    )
+
+
+def renderizar_indicador(rotulo, valor, detalhe="", compacto=False):
+    classe = "frg-stat frg-stat-inline" if compacto else "frg-stat"
+    st.markdown(
+        f'<div class="{classe}"><div class="frg-stat-label">{html_escape(str(rotulo))}</div>'
+        f'<div class="frg-stat-value">{html_escape(str(valor))}</div>'
+        f'<div class="frg-stat-note">{html_escape(str(detalhe))}</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def renderizar_meta(qtd, meta):
+    qtd = int(qtd)
+    percentual = max(0.0, min(qtd / meta, 1.0)) if meta else 0.0
+    renderizar_indicador("Seu desempenho hoje", f"{qtd} / {meta}", "Chamados concluídos hoje", compacto=True)
+    st.markdown(
+        f'<div class="frg-progress" role="progressbar" aria-label="Meta diária" '
+        f'aria-valuemin="0" aria-valuemax="{meta}" aria-valuenow="{min(qtd, meta)}">'
+        f'<div class="frg-progress-fill" style="width:{percentual * 100:.1f}%"></div></div>'
+        f'<div class="frg-progress-note">{percentual:.0%} da meta diária</div>', unsafe_allow_html=True,
+    )
+
+
+aplicar_visual_frigelar(st.session_state["tema_escolhido"])
+
 # ===================================================
 # 🎫 TELA DE LOGIN CORPORATIVA BLINDADA
 # ===================================================
 def render_corporate_login():
     st.markdown("""
     <style>
-        .stApp { background: linear-gradient(135deg, #0f1c3a 0%, #173775 100%) !important; }
-        [data-testid="stSidebar"], [data-testid="stHeader"] { display: none !important; }
-        .main .block-container { max-width: 1200px !important; padding-top: 8vh !important; }
-        [data-testid="stForm"] { background-color: #ffffff !important; padding: 50px 40px !important; border-radius: 15px !important; box-shadow: 0 15px 35px rgba(0,0,0,0.5) !important; border: none !important; width: 100% !important; max-width: 480px !important; margin: 0 auto !important; }
-        [data-testid="stForm"] div[data-baseweb="input"] { background-color: #ffffff !important; border: 2px solid #e2e8f0 !important; border-radius: 8px !important; transition: all 0.3s ease !important; height: 55px !important; }
-        [data-testid="stForm"] input { color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; font-size: 1.1em !important; height: 55px !important; line-height: 55px !important; padding-top: 0px !important; padding-bottom: 0px !important; background-color: transparent !important; }
-        [data-testid="stForm"] input::placeholder { color: #a0aec0 !important; -webkit-text-fill-color: #a0aec0 !important; opacity: 1 !important; line-height: 55px !important; }
-        [data-testid="stForm"] input[type="text"] { background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%23a0aec0' d='M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z'/%3E%3C/svg%3E") !important; background-repeat: no-repeat !important; background-position: 15px 50% !important; background-size: 18px !important; padding-left: 50px !important; }
-        [data-testid="stForm"] input[type="password"] { background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%23a0aec0' d='M144 144v48H304V144c0-44.2-35.8-80-80-80s-80 35.8-80 80zM80 192V144C80 64.5 144.5 0 224 0s144 64.5 144 144v48h16c35.3 0 64 28.7 64 64V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V256c0-35.3 28.7-64 64-64H80z'/%3E%3C/svg%3E") !important; background-repeat: no-repeat !important; background-position: 15px 50% !important; background-size: 16px !important; padding-left: 50px !important; }
-        [data-testid="stForm"] div[data-baseweb="input"]:focus-within { border-color: #38bdf8 !important; box-shadow: 0 0 0 1px #38bdf8 !important; }
-        [data-testid="stFormSubmitButton"] button { background-color: #173775 !important; color: #ffffff !important; border: none !important; border-radius: 30px !important; height: 55px !important; font-weight: bold !important; font-size: 1.2em !important; margin-top: 20px !important; width: 100% !important; transition: all 0.3s ease !important; }
-        [data-testid="stFormSubmitButton"] button:hover { background-color: #38bdf8 !important; box-shadow: 0 5px 15px rgba(56,189,248,0.4) !important; color: #ffffff !important; }
+      .stApp { background:#edf3fb; }
+      [data-testid="stSidebar"] { display:none; }
+      [data-testid="stMainBlockContainer"] { padding-top:5rem; max-width:1100px; }
+      [data-testid="stForm"] { background:#fff!important; padding:2rem!important;
+        border:1px solid #dce5ef!important; border-radius:16px!important; }
+      [data-testid="stForm"] input { background:#fff!important; color:#172d49!important; }
+      [data-testid="stForm"] label { color:#172d49!important; }
+      [data-testid="stForm"] button[kind="primary"] { background:#075bb6!important; color:#fff!important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -469,20 +700,21 @@ if 'usuario' not in st.session_state:
         except: return "" 
     logo_b64 = get_image_base64("logo_frigelar.png")
     
-    c1, c2, c3 = st.columns([1, 1.5, 1]) 
+    c1, c2, c3 = st.columns([1, 2, 1]) 
     with c2:
         with st.form("login_form", clear_on_submit=False):
-            img_src = f"data:image/png;base64,{logo_b64}" if logo_b64 else "https://raichu-uploads.s3.amazonaws.com/logo_frigelar_QERmNQ.png"
-            st.markdown(f'''
-            <div align="center" style="margin-bottom: 25px;">
-                <img src="{img_src}" style="width: 200px; display: block; margin: 0 auto; transform: translateX(-15px);">
-                <h1 style="color: #173775; font-size: 2.4em; margin: 15px 0 5px 0; font-weight: 800;">BEM-VINDO</h1>
-                <h2 style="color: #718096; font-size: 1.1em; margin: 0; font-weight: 400;">Sistema de Chamados</h2>
-            </div>
-            ''', unsafe_allow_html=True)
+            marca_login = (
+                f'<img src="data:image/png;base64,{logo_b64}" alt="Frigelar">'
+                if logo_b64 else '<strong>frigelar</strong>'
+            )
+            st.markdown(
+                '<div class="frg-login-brand">' + marca_login
+                + '<h1>Bem-vindo</h1><p>Acesse sua central de atendimento.</p></div>',
+                unsafe_allow_html=True,
+            )
             user_digitado = st.text_input("Utilizador", placeholder="Coloque o seu usuário", label_visibility="collapsed")
             senha_digitada = st.text_input("Senha", type="password", placeholder="Coloque a sua senha", label_visibility="collapsed")
-            submitted = st.form_submit_button("ENTRAR", width="stretch")
+            submitted = st.form_submit_button("Entrar", type="primary", width="stretch")
             if submitted:
                 if user_digitado in lista_nomes and str(senha_digitada) == str(senhas.get(user_digitado, "")):
                     st.session_state['usuario'] = user_digitado
@@ -524,51 +756,53 @@ else:
             idx = df_equipe.index[df_equipe['Colaboradores'] == usuario].tolist()[0]
             linha_planilha = idx + 2
 
-    # --- BARRA LATERAL ---
+    qtd_minha = 0
+    if not ranking_global.empty:
+        minha_posicao = ranking_global.index[ranking_global['Nome'] == usuario].tolist()
+        if minha_posicao:
+            qtd_minha = ranking_global.iloc[minha_posicao[0]]['Qtd']
+
+    operacao_visual = (
+        "Azix · Tratativas" if usuario in SQUAD_AZIX else
+        "MKTP · Reivindicações" if usuario in SQUAD_MKTP else
+        "Ativas Marketplace" if usuario in SQUAD_ATIVAS else "Qualitor"
+    )
+    # Navegação nativa: renderiza somente a área selecionada.
+    modo_gerente = False
+    secao_gestao = "Atendimento"
     with st.sidebar:
-        st.header(f"👤 {saudacao}, {usuario}!")
-        modo_gerente = False
+        st.markdown('<div class="frg-brand"><strong>frigelar</strong><p>Central de operações</p></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="frg-user">' + html_escape(str(usuario)) + '<span>'
+            + ("Acesso de gestor" if usuario in ADMINS else html_escape(operacao_visual))
+            + '</span></div>', unsafe_allow_html=True,
+        )
         if usuario in ADMINS:
-            st.success("👑 Modo Gestor Liberado")
-            modo_gerente = st.toggle("Painel de Gestão", value=False)
-            st.divider()
-            
-        st.info(f"Status Atual: **{status_real}**")
+            with st.container(key="frg-navigation"):
+                secao_gestao = st.radio(
+                    "Navegação", ["Atendimento", "Painel de gestão", "Importar bases", "Exportações", "Manutenção"],
+                    key="frg_secao_gestao", label_visibility="collapsed",
+                )
+            modo_gerente = secao_gestao != "Atendimento"
+        else:
+            st.caption("ÁREA DE ATENDIMENTO · " + operacao_visual)
+        st.divider()
+        status_visual = "Disponível" if status_real == "Disponivel" else str(status_real)
+        st.markdown('<div class="frg-sidebar-status">Status: <b>' + html_escape(status_visual) + '</b></div>', unsafe_allow_html=True)
         c1, c2 = st.columns(2)
-        if c1.button("🟢 Online"):
+        if c1.button("🟢 Online", type="primary" if status_real == "Disponivel" else "secondary", width="stretch"):
             if linha_planilha: aba_users.update_cell(linha_planilha, 3, "Disponivel"); registrar_log(usuario, "Ficou Disponivel"); invalidar_cache_base("equipe"); st.rerun()
-        if c2.button("☕ Pausa"):
+        if c2.button("☕ Pausa", type="primary" if status_real == "Pausa" else "secondary", width="stretch"):
             if linha_planilha: aba_users.update_cell(linha_planilha, 3, "Pausa"); registrar_log(usuario, "Entrou em Pausa"); invalidar_cache_base("equipe"); st.rerun()
-        if st.button("🚽 Banheiro"):
+        if st.button("🚽 Banheiro", width="stretch"):
             if linha_planilha: aba_users.update_cell(linha_planilha, 3, "Banheiro"); registrar_log(usuario, "Foi ao Banheiro"); invalidar_cache_base("equipe"); st.rerun()
         
         st.divider()
-        st.subheader("🏆 Seu Desempenho Hoje")
-        
-        # GAMIFICAÇÃO: Barra de Progresso
-        qtd_minha = 0
-        if not ranking_global.empty:
-            minha_posicao = ranking_global.index[ranking_global['Nome'] == usuario].tolist()
-            if minha_posicao:
-                qtd_minha = ranking_global.iloc[minha_posicao[0]]['Qtd']
-        
-        pct = min(qtd_minha / META_DIARIA, 1.0) * 100
-        cor_barra = "#ef4444" if pct < 50 else "#f59e0b" if pct < 100 else "#22c55e"
-        
-        st.markdown(f"""
-        <div style="width: 100%; background-color: #e2e8f0; border-radius: 10px; margin-top: 5px;">
-            <div style="width: {pct}%; background-color: {cor_barra}; height: 18px; border-radius: 10px; transition: 0.5s;"></div>
-        </div>
-        <p style="text-align: center; font-size: 13px; color: gray; margin-top: 5px;"><b>{qtd_minha}</b> de <b>{META_DIARIA}</b> chamados encerrados neste sistema</p>
-        """, unsafe_allow_html=True)
-        
+        st.caption("SEU PROGRESSO HOJE")
+        st.progress(min(max(float(qtd_minha) / META_DIARIA, 0.0), 1.0))
+        st.caption(f"{int(qtd_minha)} de {META_DIARIA} chamados concluídos")
         if not ranking_global.empty and minha_posicao:
-            pos_real = minha_posicao[0] + 1
-            if pos_real == 1: st.success(f"🥇 1º Lugar na equipe!")
-            elif pos_real == 2: st.info(f"🥈 2º Lugar na equipe!")
-            else: st.markdown(f"📍 **Sua posição no ranking:** {pos_real}º Lugar")
-        else: st.caption("A corrida de hoje ainda não começou!")
-
+            st.caption(f"Sua posição na equipe: {minha_posicao[0] + 1}º lugar")
         st.divider()
         with st.expander("⚙️ Meu Perfil"):
             if 'tema_escolhido' not in st.session_state: st.session_state['tema_escolhido'] = "Padrão"
@@ -595,7 +829,7 @@ else:
                 else: st.warning("⚠️ Senhas não batem ou são curtas (mín. 4).")
                 
         st.divider()
-        if st.button("Sair (Logout)"): registrar_log(usuario, "LOGOUT"); del st.session_state['usuario']; st.rerun()
+        if st.button("Sair (Logout)", width="stretch"): registrar_log(usuario, "LOGOUT"); del st.session_state['usuario']; st.rerun()
 
     # Carrega somente as bases necessárias para a tela atual.
     df_qualitor = pd.DataFrame()
@@ -631,6 +865,14 @@ else:
         COL_FIM = cols_planilha.index("Data_Conclusao") + 1 if "Data_Conclusao" in cols_planilha else 7
     else:
         COL_STATUS, COL_RESP, COL_INICIO, COL_FIM = 3, 5, 6, 7
+
+    if usuario != "TV":
+        titulo_visual = secao_gestao if modo_gerente else "Minha fila"
+        descricao_visual = (
+            "Acompanhe os resultados e organize a operação." if modo_gerente else
+            f"{saudacao}, {usuario}. {sub_saudacao}"
+        )
+        renderizar_cabecalho(titulo_visual, descricao_visual, "Gestão" if modo_gerente else operacao_visual, status_real)
 
     # ===================================================
     # 📺 MODO TELÃO (TV DO SALÃO)
@@ -705,607 +947,580 @@ else:
     # 👑 VISÃO DO GESTOR (ADMIN)
     # ===================================================
     elif modo_gerente:
-        st.title("📊 Painel de Controle - Gestão")
         st.caption(f"Última atualização: {hora_texto()}")
         if st.button("🔄 Atualizar Tudo"): invalidar_todos_os_dados(); st.rerun()
-        
-        # --- MÁQUINA DO TEMPO (FILTRO DE PERÍODO NO FORMATO BR) ---
-        st.write("---")
-        st.subheader("📅 Máquina do Tempo (Filtro de Período dos Resultados)")
-        c_dt1, c_dt2 = st.columns(2)
-        hoje_date = hora_brasil().date()
-        data_inicio = c_dt1.date_input("Data Inicial", hoje_date - timedelta(days=7), format="DD/MM/YYYY")
-        data_fim = c_dt2.date_input("Data Final", hoje_date, format="DD/MM/YYYY")
-        
-        df_logs = carregar_logs_dia()
-        ranking_periodo = pd.DataFrame()
-        df_logs_periodo = pd.DataFrame()
-        
-        azix_concluidos_periodo = 0
-        azix_avancados_periodo = 0
-        azix_devolvidos_periodo = 0
-        ativas_concluidos_periodo = 0
-        importados_azix = 0
 
-        # --- MONITOR DE SAÚDE DO SERVIDOR ---
-        st.write("---")
-        st.subheader("🖥️ Saúde do Servidor (Streamlit Cloud)")
-        st.info("Monitor local desativado para evitar incompatibilidade com o ambiente do Streamlit Cloud. Acompanhe a saúde pelos Cloud logs.")
+        if secao_gestao in ["Painel de gestão", "Exportações"]:
+            # --- MÁQUINA DO TEMPO (FILTRO DE PERÍODO NO FORMATO BR) ---
+            st.write("---")
+            st.subheader("Período dos resultados")
+            c_dt1, c_dt2 = st.columns(2)
+            hoje_date = hora_brasil().date()
+            data_inicio = c_dt1.date_input("Data Inicial", hoje_date - timedelta(days=7), format="DD/MM/YYYY", key="frg_data_inicio")
+            data_fim = c_dt2.date_input("Data Final", hoje_date, format="DD/MM/YYYY", key="frg_data_fim")
         
-        if not df_logs.empty:
-            df_logs['DataReal'] = pd.to_datetime(df_logs['DataHora'].str.split(' ').str[0], format="%d/%m/%Y", errors='coerce').dt.date
-            df_logs_periodo = df_logs[(df_logs['DataReal'] >= data_inicio) & (df_logs['DataReal'] <= data_fim)].copy()
+            df_logs = carregar_logs_dia()
+            ranking_periodo = pd.DataFrame()
+            df_logs_periodo = pd.DataFrame()
+        
+            azix_concluidos_periodo = 0
+            azix_avancados_periodo = 0
+            azix_devolvidos_periodo = 0
+            ativas_concluidos_periodo = 0
+            importados_azix = 0
+
+            if not df_logs.empty:
+                df_logs['DataReal'] = pd.to_datetime(df_logs['DataHora'].str.split(' ').str[0], format="%d/%m/%Y", errors='coerce').dt.date
+                df_logs_periodo = df_logs[(df_logs['DataReal'] >= data_inicio) & (df_logs['DataReal'] <= data_fim)].copy()
             
-            feitos_periodo = df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Finalizou|Encerrada|Concluiu Azix|Concluiu Ativa", case=False)]
-            if not feitos_periodo.empty:
-                ranking_periodo = feitos_periodo['Usuario'].value_counts().reset_index()
-                ranking_periodo.columns = ['Nome', 'Qtd']
+                feitos_periodo = df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Finalizou|Encerrada|Concluiu Azix|Concluiu Ativa", case=False)]
+                if not feitos_periodo.empty:
+                    ranking_periodo = feitos_periodo['Usuario'].value_counts().reset_index()
+                    ranking_periodo.columns = ['Nome', 'Qtd']
                 
-            # Ler a história nos Logs
-            azix_concluidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Concluiu Azix", case=False)])
-            azix_avancados_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Azix para Mktp", case=False)])
-            azix_devolvidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Devolveu Azix", case=False)])
-            ativas_concluidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Concluiu Ativa", case=False)])
+                # Ler a história nos Logs
+                azix_concluidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Concluiu Azix", case=False)])
+                azix_avancados_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Azix para Mktp", case=False)])
+                azix_devolvidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Devolveu Azix", case=False)])
+                ativas_concluidos_periodo = len(df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Concluiu Ativa", case=False)])
             
-            # Soma os importados no período
-            logs_importacao = df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Adicionou", case=False)]
-            for acao in logs_importacao['Acao']:
-                nums = re.findall(r'\d+', str(acao))
-                if nums: importados_azix += int(nums[0])
+                # Soma os importados no período
+                logs_importacao = df_logs_periodo[df_logs_periodo['Acao'].astype(str).str.contains("Adicionou", case=False)]
+                for acao in logs_importacao['Acao']:
+                    nums = re.findall(r'\d+', str(acao))
+                    if nums: importados_azix += int(nums[0])
 
-        # --- DASHBOARDS GERENCIAIS COM CARDS ---
-        st.write("---")
-        st.subheader("📈 Análise de Produtividade e Filas (Tempo Real e Período)")
+            pend_q = len(df_qualitor[df_qualitor['Status'] == 'Pendente']) if not df_qualitor.empty else 0
+            fora_sla_q = len(df_qualitor[(df_qualitor['Status'] == 'Pendente') & (df_qualitor['SLA'].astype(str).str.contains('Prioridade 1|fora', case=False, na=False))]) if not df_qualitor.empty and 'SLA' in df_qualitor.columns else 0
         
-        pend_q = len(df_qualitor[df_qualitor['Status'] == 'Pendente']) if not df_qualitor.empty else 0
-        fora_sla_q = len(df_qualitor[(df_qualitor['Status'] == 'Pendente') & (df_qualitor['SLA'].astype(str).str.contains('Prioridade 1|fora', case=False, na=False))]) if not df_qualitor.empty and 'SLA' in df_qualitor.columns else 0
+            pend_a = len(df_azix_data[df_azix_data['Status'].isin(['Pendente', 'Pendente - Retorno', 'Aguardando Reivindicação'])]) if not df_azix_data.empty else 0
+            fora_sla_a = len(df_azix_data[(df_azix_data['Status'].isin(['Pendente', 'Pendente - Retorno', 'Aguardando Reivindicação'])) & (df_azix_data['Status_SLA'].astype(str).str.contains('Atrasado|Vence Hoje', case=False, na=False))]) if not df_azix_data.empty and 'Status_SLA' in df_azix_data.columns else 0
         
-        pend_a = len(df_azix_data[df_azix_data['Status'].isin(['Pendente', 'Pendente - Retorno', 'Aguardando Reivindicação'])]) if not df_azix_data.empty else 0
-        fora_sla_a = len(df_azix_data[(df_azix_data['Status'].isin(['Pendente', 'Pendente - Retorno', 'Aguardando Reivindicação'])) & (df_azix_data['Status_SLA'].astype(str).str.contains('Atrasado|Vence Hoje', case=False, na=False))]) if not df_azix_data.empty and 'Status_SLA' in df_azix_data.columns else 0
-        
-        pend_ativas = len(df_ativas_data[df_ativas_data['Status'] == 'Pendente']) if not df_ativas_data.empty else 0
-        prio1_ativas = len(df_ativas_data[(df_ativas_data['Status'] == 'Pendente') & (df_ativas_data['Prioridade'].astype(str) == '1')]) if not df_ativas_data.empty and 'Prioridade' in df_ativas_data.columns else 0
+            pend_ativas = len(df_ativas_data[df_ativas_data['Status'] == 'Pendente']) if not df_ativas_data.empty else 0
+            prio1_ativas = len(df_ativas_data[(df_ativas_data['Status'] == 'Pendente') & (df_ativas_data['Prioridade'].astype(str) == '1')]) if not df_ativas_data.empty and 'Prioridade' in df_ativas_data.columns else 0
 
-        col1, col2, col3, col4 = st.columns(4)
-        col1.markdown(f"""
-        <div style='background-color: #f0f9ff; padding: 15px; border-radius: 10px; border-left: 5px solid #0284c7; margin-bottom: 20px;'>
-            <h4 style='color: #0369a1; margin-top:0;'>📦 Qualitor (SAC)</h4>
-            <h2>{pend_q} <span style='font-size: 0.5em; font-weight: normal; color: gray;'>Pendentes</span></h2>
-            <p style='color: #dc2626; margin-bottom:0;'>🔥 {fora_sla_q} Atrasados/Críticos</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        col2.markdown(f"""
-        <div style='background-color: #fff7ed; padding: 15px; border-radius: 10px; border-left: 5px solid #d97706; margin-bottom: 20px;'>
-            <h4 style='color: #b45309; margin-top:0;'>🔶 Azix Tratativas</h4>
-            <h2>{pend_a} <span style='font-size: 0.5em; font-weight: normal; color: gray;'>Pendentes</span></h2>
-            <p style='color: #dc2626; margin-bottom:0;'>🔥 {fora_sla_a} Atrasados/Críticos</p>
-        </div>
-        """, unsafe_allow_html=True)
+            total_feitos_periodo = ranking_periodo['Qtd'].sum() if not ranking_periodo.empty else 0
 
-        col3.markdown(f"""
-        <div style='background-color: #faf5ff; padding: 15px; border-radius: 10px; border-left: 5px solid #8b5cf6; margin-bottom: 20px;'>
-            <h4 style='color: #6b21a8; margin-top:0;'>🎯 Ativas Mktp</h4>
-            <h2>{pend_ativas} <span style='font-size: 0.5em; font-weight: normal; color: gray;'>Pendentes</span></h2>
-            <p style='color: #dc2626; margin-bottom:0;'>🔥 {prio1_ativas} Prioridade 1</p>
-            <p style='color: #6b21a8; font-size: 0.8em; margin-top:5px; margin-bottom:0;'>✅ Concluídos no Período: <b>{ativas_concluidos_periodo}</b></p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        total_feitos_periodo = ranking_periodo['Qtd'].sum() if not ranking_periodo.empty else 0
-        col4.markdown(f"""
-        <div style='background-color: #f0fdf4; padding: 15px; border-radius: 10px; border-left: 5px solid #16a34a; margin-bottom: 20px;'>
-            <h4 style='color: #15803d; margin-top:0;'>✅ Produtividade Geral</h4>
-            <h2>{total_feitos_periodo} <span style='font-size: 0.5em; font-weight: normal; color: gray;'>Concluídos</span></h2>
-            <p style='color: #16a34a; margin-bottom:0;'>De {data_inicio.strftime('%d/%m')} até {data_fim.strftime('%d/%m')}</p>
-        </div>
-        """, unsafe_allow_html=True)
+        if secao_gestao == "Painel de gestão":
+            st.subheader("Filas e produtividade")
+            cards_gestao = st.columns(4)
+            with cards_gestao[0]:
+                renderizar_indicador("Qualitor · Pendentes", pend_q, f"{fora_sla_q} atrasados / críticos")
+            with cards_gestao[1]:
+                renderizar_indicador("Azix / MKTP · Pendentes", pend_a, f"{fora_sla_a} atrasados / críticos")
+            with cards_gestao[2]:
+                renderizar_indicador("Ativas · Pendentes", pend_ativas, f"{prio1_ativas} com prioridade 1 · {ativas_concluidos_periodo} concluídos no período")
+            with cards_gestao[3]:
+                renderizar_indicador("Concluídos no período", total_feitos_periodo, f"{data_inicio:%d/%m} a {data_fim:%d/%m}")
 
-        c_graf1, c_graf2 = st.columns(2)
-        with c_graf1:
-            st.markdown("**Status Atual da Operação (Qualitor + Azix + Ativas)**")
-            if not df_qualitor.empty and not df_azix_data.empty:
-                status_comb = pd.concat([df_qualitor['Status'], df_azix_data['Status']])
-                if not df_ativas_data.empty:
-                    status_comb = pd.concat([status_comb, df_ativas_data['Status']])
-                st.bar_chart(status_comb.value_counts(), width="stretch")
-            else: st.info("Sem dados")
-        with c_graf2:
-            st.markdown(f"**Top Produtividade ({data_inicio.strftime('%d/%m')} a {data_fim.strftime('%d/%m')})**")
-            if not ranking_periodo.empty: st.bar_chart(ranking_periodo.set_index('Nome'), width="stretch")
-            else: st.info("Sem dados para o período selecionado.")
+            c_graf1, c_graf2 = st.columns(2)
+            with c_graf1:
+                st.markdown("**Status Atual da Operação (Qualitor + Azix + Ativas)**")
+                if not df_qualitor.empty and not df_azix_data.empty:
+                    status_comb = pd.concat([df_qualitor['Status'], df_azix_data['Status']])
+                    if not df_ativas_data.empty:
+                        status_comb = pd.concat([status_comb, df_ativas_data['Status']])
+                    st.bar_chart(status_comb.value_counts(), width="stretch")
+                else: st.info("Sem dados")
+            with c_graf2:
+                st.markdown(f"**Top Produtividade ({data_inicio.strftime('%d/%m')} a {data_fim.strftime('%d/%m')})**")
+                if not ranking_periodo.empty: st.bar_chart(ranking_periodo.set_index('Nome'), width="stretch")
+                else: st.info("Sem dados para o período selecionado.")
 
-        # --- NOVA VISUALIZAÇÃO: VOLUME POR ETAPA (QUALITOR) ---
-        st.write("---")
-        st.markdown("### 📊 Detalhamento de Etapas (Fila Qualitor)")
-        if not df_qualitor.empty and 'Etapa' in df_qualitor.columns:
-            df_pendentes_qualitor = df_qualitor[df_qualitor['Status'] == 'Pendente']
-            if not df_pendentes_qualitor.empty:
-                contagem_etapas = df_pendentes_qualitor['Etapa'].value_counts().reset_index()
-                contagem_etapas.columns = ['Etapa (Assunto)', 'Quantidade na Fila']
+            # --- NOVA VISUALIZAÇÃO: VOLUME POR ETAPA (QUALITOR) ---
+            st.write("---")
+            st.markdown("### 📊 Detalhamento de Etapas (Fila Qualitor)")
+            if not df_qualitor.empty and 'Etapa' in df_qualitor.columns:
+                df_pendentes_qualitor = df_qualitor[df_qualitor['Status'] == 'Pendente']
+                if not df_pendentes_qualitor.empty:
+                    contagem_etapas = df_pendentes_qualitor['Etapa'].value_counts().reset_index()
+                    contagem_etapas.columns = ['Etapa (Assunto)', 'Quantidade na Fila']
                 
-                c_etapa1, c_etapa2 = st.columns([2, 1])
-                with c_etapa1:
-                    st.bar_chart(df_pendentes_qualitor['Etapa'].value_counts(), width="stretch")
-                with c_etapa2:
-                    st.dataframe(contagem_etapas, hide_index=True, width="stretch")
+                    c_etapa1, c_etapa2 = st.columns([2, 1])
+                    with c_etapa1:
+                        st.bar_chart(df_pendentes_qualitor['Etapa'].value_counts(), width="stretch")
+                    with c_etapa2:
+                        st.dataframe(contagem_etapas, hide_index=True, width="stretch")
+                else:
+                    st.success("Não há chamados pendentes na fila do Qualitor no momento.")
             else:
-                st.success("Não há chamados pendentes na fila do Qualitor no momento.")
-        else:
-            st.info("A base Qualitor está vazia ou sem a coluna 'Etapa'.")
+                st.info("A base Qualitor está vazia ou sem a coluna 'Etapa'.")
 
-        # --- HEADCOUNT E DIMENSIONAMENTO (WFM SEPARADO E REFINADO) ---
-        st.write("---")
-        st.subheader("👥 Força de Trabalho e Dimensionamento (WFM)")
+            # --- HEADCOUNT E DIMENSIONAMENTO (WFM SEPARADO E REFINADO) ---
+            st.write("---")
+            st.subheader("👥 Força de Trabalho e Dimensionamento (WFM)")
         
-        hoje_str = data_hoje()
-        logs_do_dia = df_logs[df_logs['DataHora'].astype(str).str.contains(hoje_str)] if not df_logs.empty else pd.DataFrame()
+            hoje_str = data_hoje()
+            logs_do_dia = df_logs[df_logs['DataHora'].astype(str).str.contains(hoje_str)] if not df_logs.empty else pd.DataFrame()
         
-        qtd_azix_hoje = 0
-        qtd_qualitor_hoje = 0
-        qtd_ativas_hoje = 0
-        nomes_azix = ""
-        nomes_qualitor = ""
-        nomes_ativas = ""
+            qtd_azix_hoje = 0
+            qtd_qualitor_hoje = 0
+            qtd_ativas_hoje = 0
+            nomes_azix = ""
+            nomes_qualitor = ""
+            nomes_ativas = ""
         
-        if not logs_do_dia.empty:
-            usuarios_logados = logs_do_dia['Usuario'].unique()
-            ops_reais = [u for u in usuarios_logados if u not in ADMINS and u != "TV"]
+            if not logs_do_dia.empty:
+                usuarios_logados = logs_do_dia['Usuario'].unique()
+                ops_reais = [u for u in usuarios_logados if u not in ADMINS and u != "TV"]
             
-            # SEPARAÇÃO RÍGIDA DOS SQUADS
-            ops_azix = [u for u in ops_reais if u in SQUAD_AZIX or u in SQUAD_MKTP]
-            ops_ativas = [u for u in ops_reais if u in SQUAD_ATIVAS]
-            ops_qualitor = [u for u in ops_reais if u not in SQUAD_AZIX and u not in SQUAD_MKTP and u not in SQUAD_ATIVAS]
+                # SEPARAÇÃO RÍGIDA DOS SQUADS
+                ops_azix = [u for u in ops_reais if u in SQUAD_AZIX or u in SQUAD_MKTP]
+                ops_ativas = [u for u in ops_reais if u in SQUAD_ATIVAS]
+                ops_qualitor = [u for u in ops_reais if u not in SQUAD_AZIX and u not in SQUAD_MKTP and u not in SQUAD_ATIVAS]
             
-            qtd_azix_hoje = len(ops_azix)
-            qtd_qualitor_hoje = len(ops_qualitor)
-            qtd_ativas_hoje = len(ops_ativas)
+                qtd_azix_hoje = len(ops_azix)
+                qtd_qualitor_hoje = len(ops_qualitor)
+                qtd_ativas_hoje = len(ops_ativas)
             
-            nomes_azix = ", ".join(ops_azix) if qtd_azix_hoje > 0 else "Nenhum"
-            nomes_qualitor = ", ".join(ops_qualitor) if qtd_qualitor_hoje > 0 else "Nenhum"
-            nomes_ativas = ", ".join(ops_ativas) if qtd_ativas_hoje > 0 else "Nenhum"
+                nomes_azix = ", ".join(ops_azix) if qtd_azix_hoje > 0 else "Nenhum"
+                nomes_qualitor = ", ".join(ops_qualitor) if qtd_qualitor_hoje > 0 else "Nenhum"
+                nomes_ativas = ", ".join(ops_ativas) if qtd_ativas_hoje > 0 else "Nenhum"
 
-        c_wfm1, c_wfm2, c_wfm3 = st.columns(3)
+            c_wfm1, c_wfm2, c_wfm3 = st.columns(3)
         
-        with c_wfm1:
-            st.markdown(f"""
-            <div style='background-color: #f0f9ff; padding: 15px; border-radius: 8px; border-left: 5px solid #0284c7; height: 100%;'>
-                <p style='margin:0; color: #0369a1; font-size: 0.9em;'>Operadores Qualitor (Hoje):</p>
-                <h2 style='margin:0; color: #0f172a;'>👨‍💻 {qtd_qualitor_hoje}</h2>
-                <p style='margin-top:10px; font-size: 0.75em; color: #475569;'><b>Nomes:</b> {nomes_qualitor}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            with c_wfm1:
+                st.markdown(f"""
+                <div style='background-color: #f0f9ff; padding: 15px; border-radius: 8px; border-left: 5px solid #0284c7; height: 100%;'>
+                    <p style='margin:0; color: #0369a1; font-size: 0.9em;'>Operadores Qualitor (Hoje):</p>
+                    <h2 style='margin:0; color: #0f172a;'>👨‍💻 {qtd_qualitor_hoje}</h2>
+                    <p style='margin-top:10px; font-size: 0.75em; color: #475569;'><b>Nomes:</b> {nomes_qualitor}</p>
+                </div>
+                """, unsafe_allow_html=True)
         
-        with c_wfm2:
-            st.markdown(f"""
-            <div style='background-color: #fff7ed; padding: 15px; border-radius: 8px; border-left: 5px solid #d97706; height: 100%;'>
-                <p style='margin:0; color: #b45309; font-size: 0.9em;'>Operadores Azix/Mktp (Hoje):</p>
-                <h2 style='margin:0; color: #0f172a;'>👨‍💻 {qtd_azix_hoje}</h2>
-                <p style='margin-top:10px; font-size: 0.75em; color: #475569;'><b>Nomes:</b> {nomes_azix}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            with c_wfm2:
+                st.markdown(f"""
+                <div style='background-color: #fff7ed; padding: 15px; border-radius: 8px; border-left: 5px solid #d97706; height: 100%;'>
+                    <p style='margin:0; color: #b45309; font-size: 0.9em;'>Operadores Azix/Mktp (Hoje):</p>
+                    <h2 style='margin:0; color: #0f172a;'>👨‍💻 {qtd_azix_hoje}</h2>
+                    <p style='margin-top:10px; font-size: 0.75em; color: #475569;'><b>Nomes:</b> {nomes_azix}</p>
+                </div>
+                """, unsafe_allow_html=True)
 
-        with c_wfm3:
-            st.markdown(f"""
-            <div style='background-color: #faf5ff; padding: 15px; border-radius: 8px; border-left: 5px solid #8b5cf6; height: 100%;'>
-                <p style='margin:0; color: #6b21a8; font-size: 0.9em;'>Operadores Ativas Mktp (Hoje):</p>
-                <h2 style='margin:0; color: #0f172a;'>👨‍💻 {qtd_ativas_hoje}</h2>
-                <p style='margin-top:10px; font-size: 0.75em; color: #475569;'><b>Nomes:</b> {nomes_ativas}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            with c_wfm3:
+                st.markdown(f"""
+                <div style='background-color: #faf5ff; padding: 15px; border-radius: 8px; border-left: 5px solid #8b5cf6; height: 100%;'>
+                    <p style='margin:0; color: #6b21a8; font-size: 0.9em;'>Operadores Ativas Mktp (Hoje):</p>
+                    <h2 style='margin:0; color: #0f172a;'>👨‍💻 {qtd_ativas_hoje}</h2>
+                    <p style='margin-top:10px; font-size: 0.75em; color: #475569;'><b>Nomes:</b> {nomes_ativas}</p>
+                </div>
+                """, unsafe_allow_html=True)
 
-        st.write("")
-        st.markdown("### ⏱️ Calculadoras de Dimensionamento (WFM)")
-        col_calc1, col_calc2 = st.columns(2)
+            st.write("")
+            st.markdown("### ⏱️ Calculadoras de Dimensionamento (WFM)")
+            col_calc1, col_calc2 = st.columns(2)
 
         
 
-        # 1. CALCULADORA QUALITOR
-        with col_calc1:
-            st.markdown("<div style='background-color: #f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;'>", unsafe_allow_html=True)
-            st.markdown("<p style='margin:0; color: #0284c7; font-weight: bold;'>🔷 Calculadora Qualitor (SAC)</p>", unsafe_allow_html=True)
-            col_tq, col_hq = st.columns(2)
-            tma_q = col_tq.number_input("TMA Qualitor (min):", min_value=1, value=8, key="tma_q")
-            hora_fim_q = col_hq.time_input("Fim Turno Qualitor:", value=datetime.strptime("18:00", "%H:%M").time(), key="hf_q")
+            # 1. CALCULADORA QUALITOR
+            with col_calc1:
+                st.markdown("<div style='background-color: #f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;'>", unsafe_allow_html=True)
+                st.markdown("<p style='margin:0; color: #0284c7; font-weight: bold;'>🔷 Calculadora Qualitor (SAC)</p>", unsafe_allow_html=True)
+                col_tq, col_hq = st.columns(2)
+                tma_q = col_tq.number_input("TMA Qualitor (min):", min_value=1, value=8, key="tma_q")
+                hora_fim_q = col_hq.time_input("Fim Turno Qualitor:", value=datetime.strptime("18:00", "%H:%M").time(), key="hf_q")
             
-            agora = hora_brasil()
-            fim_q_dt = agora.replace(hour=hora_fim_q.hour, minute=hora_fim_q.minute, second=0, microsecond=0)
-            minutos_q = int((fim_q_dt - agora).total_seconds() / 60)
+                agora = hora_brasil()
+                fim_q_dt = agora.replace(hour=hora_fim_q.hour, minute=hora_fim_q.minute, second=0, microsecond=0)
+                minutos_q = int((fim_q_dt - agora).total_seconds() / 60)
             
-            if minutos_q > 0 and pend_q > 0:
-                p_necessarias_q = np.ceil((pend_q * tma_q) / minutos_q)
-                st.info(f"**Ideal:** {int(p_necessarias_q)} operadores p/ zerar {pend_q} chamados.")
-                if qtd_qualitor_hoje < p_necessarias_q:
-                    st.error(f"⚠️ Faltam {int(p_necessarias_q - qtd_qualitor_hoje)} operadores no Qualitor!")
-                else:
-                    st.success("✅ Equipe Qualitor dimensionada corretamente!")
-            elif pend_q == 0: st.success("🎉 Fila Qualitor zerada!")
-            else: st.error("⏰ Expediente encerrado.")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        # 2. CALCULADORA ATIVAS MKTP
-        with col_calc2:
-            st.markdown("<div style='background-color: #f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;'>", unsafe_allow_html=True)
-            st.markdown("<p style='margin:0; color: #8b5cf6; font-weight: bold;'>🎯 Calculadora Ativas Mktp</p>", unsafe_allow_html=True)
-            col_ta, col_ha = st.columns(2)
-            tma_a = col_ta.number_input("TMA Ativas (min):", min_value=1, value=5, key="tma_a")
-            hora_fim_a = col_ha.time_input("Fim Turno Ativas:", value=datetime.strptime("18:00", "%H:%M").time(), key="hf_a")
-            
-            fim_a_dt = agora.replace(hour=hora_fim_a.hour, minute=hora_fim_a.minute, second=0, microsecond=0)
-            minutos_a = int((fim_a_dt - agora).total_seconds() / 60)
-            
-            if minutos_a > 0 and pend_ativas > 0:
-                p_necessarias_a = np.ceil((pend_ativas * tma_a) / minutos_a)
-                st.info(f"**Ideal:** {int(p_necessarias_a)} operadores p/ zerar {pend_ativas} pedidos.")
-                if qtd_ativas_hoje < p_necessarias_a:
-                    st.error(f"⚠️ Faltam {int(p_necessarias_a - qtd_ativas_hoje)} operadores nas Ativas!")
-                else:
-                    st.success("✅ Equipe Ativas dimensionada corretamente!")
-            elif pend_ativas == 0: st.success("🎉 Fila Ativas zerada!")
-            else: st.error("⏰ Expediente encerrado.")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-       # ====================================================================
-        # ⏱️ NOVO MÓDULO: MOTOR DE TMA (ON-DEMAND / A PEDIDO)
-        # ====================================================================
-        st.write("---")
-        with st.expander("⏱️ Desempenho de Tempo (TMA / TMT) - Clique para Abrir", expanded=False):
-            st.info("💡 Para proteger a memória do servidor, o TMA não é calculado automaticamente. Selecione a data na Máquina do Tempo lá em cima e clique no botão abaixo.")
-            
-            if st.button("🚀 Calcular TMA do Período", type="primary"):
-                if not df_logs_periodo.empty:
-                    with st.spinner("Analisando logs e calculando tempos médios..."):
-                        try:
-                            df_tma = df_logs_periodo.copy()
-                            
-                            # 1. O Robô caça os números dos chamados dentro dos textos dos logs
-                            df_tma['ID_Chamado'] = df_tma['Acao'].astype(str).str.extract(r'(\d+)')
-                            
-                            # 2. O Robô separa o que é clique de Início e o que é clique de Fim
-                            def classificar_acao(texto):
-                                texto = str(texto).lower()
-                                if 'pegou' in texto or 'busca ativa' in texto: return 'Inicio'
-                                if any(x in texto for x in ['finalizou', 'concluiu', 'encerrada']): return 'Fim'
-                                return 'Outro'
-                            
-                            df_tma['Tipo_Acao'] = df_tma['Acao'].apply(classificar_acao)
-                            
-                            # 3. Filtra apenas as linhas úteis
-                            df_calc = df_tma[(df_tma['ID_Chamado'].notna()) & (df_tma['Tipo_Acao'].isin(['Inicio', 'Fim']))].copy()
-                            
-                            if not df_calc.empty:
-                                df_calc['DataHora_DT'] = pd.to_datetime(df_calc['DataHora'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
-                                
-                                # 4. Junta o Início e o Fim na mesma linha para calcular a diferença
-                                tma_pivot = df_calc.pivot_table(index=['Usuario', 'ID_Chamado'], columns='Tipo_Acao', values='DataHora_DT', aggfunc='first').reset_index()
-                                
-                                if 'Inicio' in tma_pivot.columns and 'Fim' in tma_pivot.columns:
-                                    # A MATEMÁTICA DO TEMPO!
-                                    tma_pivot['Duracao_Minutos'] = (tma_pivot['Fim'] - tma_pivot['Inicio']).dt.total_seconds() / 60.0
-                                    tma_pivot = tma_pivot[tma_pivot['Duracao_Minutos'] > 0] # Remove erros e cliques duplicados rápidos
-                                    
-                                    if not tma_pivot.empty:
-                                        # Define de qual squad a pessoa é
-                                        def definir_squad(user):
-                                            if user in SQUAD_AZIX or user in SQUAD_MKTP: return "🔶 Azix/Mktp"
-                                            if user in SQUAD_ATIVAS: return "🎯 Ativas Mktp"
-                                            return "🔷 Qualitor"
-                                        
-                                        tma_pivot['Equipe'] = tma_pivot['Usuario'].apply(definir_squad)
-                                        
-                                        # Agrupamentos Matemáticos
-                                        tma_geral = tma_pivot['Duracao_Minutos'].mean()
-                                        tma_por_squad = tma_pivot.groupby('Equipe')['Duracao_Minutos'].mean().reset_index()
-                                        tma_por_user = tma_pivot.groupby(['Equipe', 'Usuario'])['Duracao_Minutos'].agg(['mean', 'count']).reset_index()
-                                        tma_por_user.columns = ['Equipe', 'Operador', 'TMA_Minutos', 'Chamados_Medidos']
-                                        tma_por_user = tma_por_user.sort_values(by=['Equipe', 'TMA_Minutos'])
-                                        
-                                        # Formatador bonito de tempo
-                                        def formatar_tma(minutos):
-                                            if pd.isna(minutos): return "-"
-                                            m = int(minutos)
-                                            s = int((minutos - m) * 60)
-                                            return f"{m}m {s}s"
-                                        
-                                        # --- DESENHA NA TELA ---
-                                        col_t1, col_t2 = st.columns([1, 2])
-                                        
-                                        with col_t1:
-                                            st.markdown(f"<h3 style='color: #475569;'>TMA Global: <span style='color: #0f172a;'>{formatar_tma(tma_geral)}</span></h3>", unsafe_allow_html=True)
-                                            st.write("**TMA Médio por Equipe:**")
-                                            tma_por_squad['TMA Visual'] = tma_por_squad['Duracao_Minutos'].apply(formatar_tma)
-                                            st.dataframe(tma_por_squad[['Equipe', 'TMA Visual']], hide_index=True, width="stretch")
-                                            
-                                        with col_t2:
-                                            st.write("**👨‍💻 TMA Individual dos Operadores:**")
-                                            tma_por_user['TMA Visual'] = tma_por_user['TMA_Minutos'].apply(formatar_tma)
-                                            st.dataframe(tma_por_user[['Equipe', 'Operador', 'TMA Visual', 'Chamados_Medidos']], hide_index=True, width="stretch")
-                                    else:
-                                        st.info("⏳ Aguardando os operadores finalizarem os primeiros chamados para gerar as médias.")
-                                else:
-                                    st.info("⏳ Recolhendo dados de Início e Fim das tratativas atuais...")
-                        except Exception as e:
-                            st.error(f"Erro ao calcular TMA: {e}")
-                else:
-                    st.warning("Sem logs no período selecionado para calcular o TMA.")
-
-        # --- NOVA VISUALIZAÇÃO: MÉTRICAS DE VALIDAÇÃO DA RECEITA (AZIX) ---
-        st.write("---")
-        st.markdown("### 🏛️ Validação de Endereço na Receita (Azix)")
-        
-        if not df_azix_data.empty and 'Validacao_Receita' in df_azix_data.columns:
-            # Puxamos os dados da coluna e limpamos espaços vazios
-            df_val = df_azix_data.copy()
-            df_val['Validacao_Receita'] = df_val['Validacao_Receita'].astype(str).str.strip()
-            
-            # 1. Quantos entram (Total na base do Azix)
-            total_entraram = len(df_val)
-            
-            # Matemática dos Status
-            aceitaram = len(df_val[df_val['Validacao_Receita'] == 'Cliente Aceitou'])
-            reprovaram = len(df_val[df_val['Validacao_Receita'] == 'Cliente Negou'])
-            aguardando = len(df_val[df_val['Validacao_Receita'] == 'Aguardando Cliente'])
-            sla_esgotado = len(df_val[df_val['Validacao_Receita'] == 'SLA Esgotado'])
-            
-            # 2. Quantos trataram (Soma de todos que já ganharam um status diferente de vazio/Não Tratado)
-            trataram_total = aceitaram + reprovaram + aguardando + sla_esgotado
-            
-            # Cards na tela
-            linha_1 = st.columns(3)
-            linha_1[0].metric("📥 Base Total (Entraram)", total_entraram)
-            linha_1[1].metric("⚙️ Já Tratados", trataram_total)
-            linha_1[2].metric("✅ Aceitaram", aceitaram)
-
-            # Segunda linha de indicadores
-            linha_2 = st.columns(3)
-
-            linha_2[0].metric("❌ Reprovaram", reprovaram)
-            linha_2[1].metric("⏳ Aguardando", aguardando)
-            linha_2[2].metric("⏰ SLA Esgotado", sla_esgotado)
-            
-            # Gráfico de Validação
-            if trataram_total > 0:
-                dados_grafico_val = pd.DataFrame({
-                    'Status': ['Aceitou', 'Negou', 'Aguardando', 'SLA Esgotado'],
-                    'Quantidade': [aceitaram, reprovaram, aguardando, sla_esgotado]
-                }).set_index('Status')
-                st.bar_chart(dados_grafico_val, width="stretch", color="#d97706")
-        else:
-            st.info("Aguardando as primeiras validações da equipa ou a coluna 'Validacao_Receita' ainda não foi lida na base.")
-
-        # --- EXPORTAÇÃO COMPLETA COM FILTRO ---
-        st.write("---")
-        st.subheader("💾 Exportação de Bases e Auditoria")
-        
-        # Função para converter DataFrame em Excel em memória
-        import io
-        def df_para_excel(df_export):
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_export.to_excel(writer, index=False, sheet_name='Sheet1')
-            return output.getvalue()
-
-        cexp1, cexp2, cexp3 = st.columns(3)
-        
-        with cexp1:
-            if not df_qualitor.empty:
-                if st.button("🛠️ Preparar Qualitor", key="preparar_excel_q", width="stretch"):
-                    st.session_state["excel_q"] = df_para_excel(df_qualitor)
-                if "excel_q" in st.session_state:
-                    st.download_button("📥 BAIXAR QUALITOR", data=st.session_state["excel_q"], file_name=f"Qualitor_{data_hoje().replace('/','-')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
-
-        with cexp2:
-            if not df_azix_data.empty:
-                if st.button("🛠️ Preparar Azix/MKTP", key="preparar_excel_a", width="stretch"):
-                    st.session_state["excel_a"] = df_para_excel(df_azix_data)
-                if "excel_a" in st.session_state:
-                    st.download_button("📥 BAIXAR AZIX/MKTP", data=st.session_state["excel_a"], file_name=f"Azix_{data_hoje().replace('/','-')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
-
-        with cexp3:
-            if not df_logs_periodo.empty:
-                if st.button("🛠️ Preparar Logs", key="preparar_excel_logs", width="stretch"):
-                    df_logs_export = df_logs_periodo.drop(columns=['DataReal'])
-                    st.session_state["excel_logs"] = df_para_excel(df_logs_export)
-                if "excel_logs" in st.session_state:
-                    nome_arquivo_logs = f"Logs_{data_inicio.strftime('%d%m')}_a_{data_fim.strftime('%d%m')}.xlsx"
-                    st.download_button("📥 BAIXAR LOGS", data=st.session_state["excel_logs"], file_name=nome_arquivo_logs, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
-            else:
-                st.info("Sem logs para este período.")
-
-        # --- GERADOR DE RELATÓRIO EXECUTIVO (PDF) ---
-        st.write("---")
-        with st.expander("📄 Gerar Relatório Executivo Oficial (PDF)"):
-            aviso_pdf = st.text_input("Observação (Opcional):", placeholder="Ex: Operação Azix com volume alto...")
-            if st.button("🖨️ Mapear Dados e Criar PDF", width="stretch"):
-                with st.spinner("Compilando dados em tempo real..."):
-                    def formatar_texto(texto): return unicodedata.normalize('NFKD', str(texto)).encode('ASCII', 'ignore').decode('ASCII')
-                    
-                    pdf = FPDF()
-                    pdf.add_page()
-                    pdf.set_font('Arial', 'B', 16); pdf.cell(0, 10, formatar_texto('Relatorio Executivo - Operacao SAC & Azix'), 0, 1, 'C')
-                    pdf.set_font('Arial', 'I', 10); pdf.cell(0, 10, formatar_texto(f'Gerado em: {hora_texto()}'), 0, 1, 'C'); pdf.ln(10)
-                    
-                    pdf.set_font('Arial', 'B', 12); pdf.cell(0, 10, formatar_texto('1. OPERACAO QUALITOR (TEMPO REAL)'), 0, 1)
-                    pdf.set_font('Arial', '', 12)
-                    pdf.cell(0, 10, formatar_texto(f'> Fila Atual: {pend_q} pendentes. (Criticos/Atrasados: {fora_sla_q})'), 0, 1)
-                    pdf.ln(5)
-                    
-                    pdf.set_font('Arial', 'B', 12); pdf.cell(0, 10, formatar_texto('2. OPERACAO AZIX / MARKETPLACE (TEMPO REAL)'), 0, 1)
-                    pdf.set_font('Arial', '', 12)
-                    pdf.cell(0, 10, formatar_texto(f'> Fila Atual: {pend_a} tratativas pendentes. (Criticas/Atrasadas: {fora_sla_a})'), 0, 1)
-                    pdf.ln(5)
-                    
-                    pdf.set_font('Arial', 'B', 12); pdf.cell(0, 10, formatar_texto(f'3. DESTAQUES DA EQUIPE ({data_inicio.strftime("%d/%m")} a {data_fim.strftime("%d/%m")})'), 0, 1)
-                    pdf.set_font('Arial', '', 12)
-                    if not ranking_periodo.empty:
-                        for i, row in ranking_periodo.head(3).iterrows(): pdf.cell(0, 10, formatar_texto(f"{i+1} Lugar: {row['Nome']} - {row['Qtd']} concluídos"), 0, 1)
-                    else: pdf.cell(0, 10, formatar_texto('Sem finalizacoes neste periodo.'), 0, 1)
-                    pdf.ln(5)
-                    
-                    if aviso_pdf:
-                        pdf.set_font('Arial', 'B', 12); pdf.cell(0, 10, formatar_texto('4. DIRETRIZ DA GESTAO'), 0, 1)
-                        pdf.set_font('Arial', 'I', 11); pdf.multi_cell(0, 10, formatar_texto(aviso_pdf))
-                        
-                    nome_arquivo = f"Relatorio_Operacional_{datetime.now().strftime('%d%m%Y')}.pdf"
-                    pdf.output(nome_arquivo, 'F')
-                    with open(nome_arquivo, "rb") as f: bytes_pdf = f.read()
-                    st.success("✅ PDF Gerado!")
-                    st.download_button(label="📥 BAIXAR RELATÓRIO PDF", data=bytes_pdf, file_name=nome_arquivo, mime="application/pdf", type="primary")
-            
-        # --- ROBÔ IMPORTADOR ---
-        st.write("---")
-        st.subheader("📥 Robô Importador Universal")
-        tipo_importacao = st.radio("Escolha a Base:", ["1. Qualitor (Substituição)", "2. Azix (Injeção Inteligente)"])
-        
-        with st.expander("Abrir Ferramenta"):
-            arquivo_excel = st.file_uploader("Arraste o arquivo aqui (.xlsx ou .csv)", type=["xlsx", "xls", "csv"])
-            if arquivo_excel is not None:
-                try:
-                    with st.spinner("Lendo..."):
-                        if arquivo_excel.name.endswith('.csv'): df_bruto = pd.read_csv(arquivo_excel, sep=None, engine='python', encoding='latin-1')
-                        else: df_bruto = pd.read_excel(arquivo_excel)
-                    
-                    if tipo_importacao == "1. Qualitor (Substituição)":
-                        if 'PROCESSO' in df_bruto.columns and 'Chamado' in df_bruto.columns:
-                            # REGRA DE OURO QUALITOR
-                            df_filtrado = df_bruto[~df_bruto['PROCESSO'].astype(str).str.contains("SOLICITANTE ATUALIZAR INFORMAÇÕES", na=False)].copy()
-                            de_para = {
-                                "(SAC) - ARREPENDIMENTO V3": "Arrependimento", "(SAC) - CANCELAMENTO V3": "Cancelamento de pedido",
-                                "(SAC) - ATRASO V3": "Atraso de Entrega", "(SAC) - PRODUTO ERRADO V3": "Produto Errado",
-                                "(SAC) - AVARIA V3": "Avaria", "(SAC) - ESTORNADOS": "Estornados", "(SAC) - EXTRAVIO V6": "Extravio"
-                            }
-                            df_filtrado['Etapa_Limpa'] = df_filtrado['PROCESSO'].map(de_para).fillna(df_filtrado['PROCESSO'])
-                            
-                            # Identifica quem é MKTP
-                            is_mktp = pd.Series(False, index=df_filtrado.index)
-                            if 'Etapa' in df_filtrado.columns:
-                                is_mktp = df_filtrado['Etapa'].astype(str).str.contains("REEMBOLSO MKTP", na=False, case=False)
-                                df_filtrado.loc[is_mktp, 'Etapa_Limpa'] = "Reembolso MKTP"
-                            
-                            def def_prioridade(linha): return "🔥 Prioridade (Vence Hoje)" if "PRIORIDADE 1" in str(linha).upper() else "Normal ✅"
-                            df_filtrado['SLA_Final'] = df_filtrado['Lista'].apply(def_prioridade) if 'Lista' in df_filtrado.columns else "Normal ✅"
-                            
-                            # ---> 🚀 NOVA REGRA: MUDAR ETAPA PARA "Prioridade" (Exceto MKTP) <---
-                            if 'Lista' in df_filtrado.columns:
-                                is_prio = df_filtrado['Lista'].astype(str).str.upper().str.contains("PRIORIDADE 1", na=False)
-                                df_filtrado.loc[is_prio & ~is_mktp, 'Etapa_Limpa'] = "Prioridade"
-                            
-                            df_novo = pd.DataFrame()
-                            df_novo['ID'] = ""; df_novo['Dados'] = df_filtrado['Chamado'].astype(str).str.replace(r'\.0$', '', regex=True); df_novo['Status'] = "Pendente"; df_novo['Etapa'] = df_filtrado['Etapa_Limpa']; df_novo['SLA'] = df_filtrado['SLA_Final']; df_novo['Responsavel'] = ""; df_novo['Inicio'] = ""; df_novo['Data_Conclusao'] = "" 
-                            df_pronto = df_novo.drop_duplicates(subset=['Dados'])
-                            
-                            qtd_novos = len(df_pronto)
-                            qtd_prioridade = len(df_pronto[df_pronto['SLA'].str.contains("Prioridade")])
-                            
-                            st.success("✅ Análise Qualitor concluída!")
-                            cc1, cc2 = st.columns(2)
-                            cc1.markdown(f"<div style='background-color: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;'><h3 style='margin:0; color:#0f172a;'>📦 {qtd_novos}</h3><p style='margin:0; color:#64748b;'>Chamados Identificados</p></div>", unsafe_allow_html=True)
-                            
-                            if 'Etapa' in df_pronto.columns:
-                                top_etapas = df_pronto['Etapa'].value_counts().head(3)
-                                txt_etapas = "<br>".join([f"<b>{k}:</b> {v}" for k, v in top_etapas.items()])
-                                cc2.markdown(f"<div style='background-color: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;'><p style='margin:0; color:#64748b; font-size:0.9em;'>Top Assuntos:</p><div style='color:#0f172a;'>{txt_etapas}</div></div>", unsafe_allow_html=True)
-                            
-                            st.write("")
-                            if qtd_prioridade > 0:
-                                st.error(f"🔥 ALERTA: Temos **{qtd_prioridade}** chamados com PRIORIDADE MÁXIMA (Vence Hoje) neste lote. Foco total!")
-
-                            if st.button("🚀 SUBSTITUIR BASE QUALITOR", type="primary"):
-                                df_limpo = df_pronto.fillna("").replace(['nan', 'NaN', 'NaT', 'None'], "")
-                                limpar_reservas_aba(aba_chamados)
-                                aba_chamados.clear(); aba_chamados.append_rows([df_limpo.columns.tolist()] + df_limpo.values.tolist())
-                                registrar_log(usuario, "Importou Base Qualitor")
-                                st.success("Atualizado!"); invalidar_cache_base("qualitor"); st.rerun()
-                        else: st.error("Erro: Colunas 'Chamado' ou 'PROCESSO' ausentes na planilha.")
-                    
+                if minutos_q > 0 and pend_q > 0:
+                    p_necessarias_q = np.ceil((pend_q * tma_q) / minutos_q)
+                    st.info(f"**Ideal:** {int(p_necessarias_q)} operadores p/ zerar {pend_q} chamados.")
+                    if qtd_qualitor_hoje < p_necessarias_q:
+                        st.error(f"⚠️ Faltam {int(p_necessarias_q - qtd_qualitor_hoje)} operadores no Qualitor!")
                     else:
-                        if aba_azix is None: st.error("Aba 'Azix' não existe!"); st.stop()
-                        df_bruto = df_bruto.fillna("").astype(str).replace(['nan', 'NaN', 'NaT', 'None'], "")
-                        
-                        if not df_azix_data.empty and 'Nº Pedido venda' in df_azix_data.columns:
-                            existentes = df_azix_data['Nº Pedido venda'].astype(str).tolist()
-                            df_novos = df_bruto[~df_bruto['Nº Pedido venda'].astype(str).isin(existentes)].copy()
-                            is_merge = True
-                        else:
-                            df_novos = df_bruto.copy()
-                            is_merge = False
-                            
-                        qtd_total_lidos = len(df_bruto)
-                        qtd_novos = len(df_novos)
-                        qtd_existentes = qtd_total_lidos - qtd_novos
-                        
-                        st.success("✅ Análise Azix concluída!")
-                        st.info(f"📊 **Resumo da Importação:** Lidos: {qtd_total_lidos} | Já existiam na base (Ignorados): {qtd_existentes} | **NOVOS para Injetar: {qtd_novos}**")
-                        
-                        st.write("")
-                        if qtd_novos > 0 and st.button("🚀 ADICIONAR NOVOS PEDIDOS (AZIX)", type="primary"):
-                            df_novos['Status'] = "Pendente"
-                            df_novos['Responsavel'] = ""
-                            df_novos['Inicio'] = ""
-                            df_novos['Data_Conclusao'] = ""
-                            df_novos['Assentamentos'] = ""
-                            df_novos['Data_Entrada'] = data_hoje() 
-                            
-                            if is_merge:
-                                cols_exist = df_azix_data.columns.tolist()
-                                for c in cols_exist:
-                                    if c not in df_novos.columns: df_novos[c] = ""
-                                df_novos = df_novos[cols_exist]
-                                aba_azix.append_rows(df_novos.values.tolist())
-                            else:
-                                aba_azix.clear(); aba_azix.append_rows([df_novos.columns.tolist()] + df_novos.values.tolist())
-                            
-                            registrar_log(usuario, f"Adicionou {len(df_novos)} Azix")
-                            st.success("Fila Azix atualizada!"); invalidar_cache_base("azix"); st.rerun()
-                except Exception as e: st.error(f"Erro no robô: {e}")
+                        st.success("✅ Equipe Qualitor dimensionada corretamente!")
+                elif pend_q == 0: st.success("🎉 Fila Qualitor zerada!")
+                else: st.error("⏰ Expediente encerrado.")
+                st.markdown("</div>", unsafe_allow_html=True)
 
-        st.write("---")
-        st.subheader("🧹 Limpeza e Ações de Emergência")
-        if st.button("🧹 APAGAR TODOS OS CONCLUÍDOS (AZIX)"):
-            if not df_azix_data.empty:
-                df_ativos = df_azix_data[df_azix_data['Status'] != 'Concluido'].copy()
+            # 2. CALCULADORA ATIVAS MKTP
+            with col_calc2:
+                st.markdown("<div style='background-color: #f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;'>", unsafe_allow_html=True)
+                st.markdown("<p style='margin:0; color: #8b5cf6; font-weight: bold;'>🎯 Calculadora Ativas Mktp</p>", unsafe_allow_html=True)
+                col_ta, col_ha = st.columns(2)
+                tma_a = col_ta.number_input("TMA Ativas (min):", min_value=1, value=5, key="tma_a")
+                hora_fim_a = col_ha.time_input("Fim Turno Ativas:", value=datetime.strptime("18:00", "%H:%M").time(), key="hf_a")
+            
+                fim_a_dt = agora.replace(hour=hora_fim_a.hour, minute=hora_fim_a.minute, second=0, microsecond=0)
+                minutos_a = int((fim_a_dt - agora).total_seconds() / 60)
+            
+                if minutos_a > 0 and pend_ativas > 0:
+                    p_necessarias_a = np.ceil((pend_ativas * tma_a) / minutos_a)
+                    st.info(f"**Ideal:** {int(p_necessarias_a)} operadores p/ zerar {pend_ativas} pedidos.")
+                    if qtd_ativas_hoje < p_necessarias_a:
+                        st.error(f"⚠️ Faltam {int(p_necessarias_a - qtd_ativas_hoje)} operadores nas Ativas!")
+                    else:
+                        st.success("✅ Equipe Ativas dimensionada corretamente!")
+                elif pend_ativas == 0: st.success("🎉 Fila Ativas zerada!")
+                else: st.error("⏰ Expediente encerrado.")
+                st.markdown("</div>", unsafe_allow_html=True)
+
+           # ====================================================================
+            # ⏱️ NOVO MÓDULO: MOTOR DE TMA (ON-DEMAND / A PEDIDO)
+            # ====================================================================
+            st.write("---")
+            with st.expander("⏱️ Desempenho de Tempo (TMA / TMT) - Clique para Abrir", expanded=False):
+                st.info("💡 Para proteger a memória do servidor, o TMA não é calculado automaticamente. Selecione a data na Máquina do Tempo lá em cima e clique no botão abaixo.")
+            
+                if st.button("🚀 Calcular TMA do Período", type="primary"):
+                    if not df_logs_periodo.empty:
+                        with st.spinner("Analisando logs e calculando tempos médios..."):
+                            try:
+                                df_tma = df_logs_periodo.copy()
+                            
+                                # 1. O Robô caça os números dos chamados dentro dos textos dos logs
+                                df_tma['ID_Chamado'] = df_tma['Acao'].astype(str).str.extract(r'(\d+)')
+                            
+                                # 2. O Robô separa o que é clique de Início e o que é clique de Fim
+                                def classificar_acao(texto):
+                                    texto = str(texto).lower()
+                                    if 'pegou' in texto or 'busca ativa' in texto: return 'Inicio'
+                                    if any(x in texto for x in ['finalizou', 'concluiu', 'encerrada']): return 'Fim'
+                                    return 'Outro'
+                            
+                                df_tma['Tipo_Acao'] = df_tma['Acao'].apply(classificar_acao)
+                            
+                                # 3. Filtra apenas as linhas úteis
+                                df_calc = df_tma[(df_tma['ID_Chamado'].notna()) & (df_tma['Tipo_Acao'].isin(['Inicio', 'Fim']))].copy()
+                            
+                                if not df_calc.empty:
+                                    df_calc['DataHora_DT'] = pd.to_datetime(df_calc['DataHora'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
+                                
+                                    # 4. Junta o Início e o Fim na mesma linha para calcular a diferença
+                                    tma_pivot = df_calc.pivot_table(index=['Usuario', 'ID_Chamado'], columns='Tipo_Acao', values='DataHora_DT', aggfunc='first').reset_index()
+                                
+                                    if 'Inicio' in tma_pivot.columns and 'Fim' in tma_pivot.columns:
+                                        # A MATEMÁTICA DO TEMPO!
+                                        tma_pivot['Duracao_Minutos'] = (tma_pivot['Fim'] - tma_pivot['Inicio']).dt.total_seconds() / 60.0
+                                        tma_pivot = tma_pivot[tma_pivot['Duracao_Minutos'] > 0] # Remove erros e cliques duplicados rápidos
+                                    
+                                        if not tma_pivot.empty:
+                                            # Define de qual squad a pessoa é
+                                            def definir_squad(user):
+                                                if user in SQUAD_AZIX or user in SQUAD_MKTP: return "🔶 Azix/Mktp"
+                                                if user in SQUAD_ATIVAS: return "🎯 Ativas Mktp"
+                                                return "🔷 Qualitor"
+                                        
+                                            tma_pivot['Equipe'] = tma_pivot['Usuario'].apply(definir_squad)
+                                        
+                                            # Agrupamentos Matemáticos
+                                            tma_geral = tma_pivot['Duracao_Minutos'].mean()
+                                            tma_por_squad = tma_pivot.groupby('Equipe')['Duracao_Minutos'].mean().reset_index()
+                                            tma_por_user = tma_pivot.groupby(['Equipe', 'Usuario'])['Duracao_Minutos'].agg(['mean', 'count']).reset_index()
+                                            tma_por_user.columns = ['Equipe', 'Operador', 'TMA_Minutos', 'Chamados_Medidos']
+                                            tma_por_user = tma_por_user.sort_values(by=['Equipe', 'TMA_Minutos'])
+                                        
+                                            # Formatador bonito de tempo
+                                            def formatar_tma(minutos):
+                                                if pd.isna(minutos): return "-"
+                                                m = int(minutos)
+                                                s = int((minutos - m) * 60)
+                                                return f"{m}m {s}s"
+                                        
+                                            # --- DESENHA NA TELA ---
+                                            col_t1, col_t2 = st.columns([1, 2])
+                                        
+                                            with col_t1:
+                                                st.markdown(f"<h3 style='color: #475569;'>TMA Global: <span style='color: #0f172a;'>{formatar_tma(tma_geral)}</span></h3>", unsafe_allow_html=True)
+                                                st.write("**TMA Médio por Equipe:**")
+                                                tma_por_squad['TMA Visual'] = tma_por_squad['Duracao_Minutos'].apply(formatar_tma)
+                                                st.dataframe(tma_por_squad[['Equipe', 'TMA Visual']], hide_index=True, width="stretch")
+                                            
+                                            with col_t2:
+                                                st.write("**👨‍💻 TMA Individual dos Operadores:**")
+                                                tma_por_user['TMA Visual'] = tma_por_user['TMA_Minutos'].apply(formatar_tma)
+                                                st.dataframe(tma_por_user[['Equipe', 'Operador', 'TMA Visual', 'Chamados_Medidos']], hide_index=True, width="stretch")
+                                        else:
+                                            st.info("⏳ Aguardando os operadores finalizarem os primeiros chamados para gerar as médias.")
+                                    else:
+                                        st.info("⏳ Recolhendo dados de Início e Fim das tratativas atuais...")
+                            except Exception as e:
+                                st.error(f"Erro ao calcular TMA: {e}")
+                    else:
+                        st.warning("Sem logs no período selecionado para calcular o TMA.")
+
+            # --- NOVA VISUALIZAÇÃO: MÉTRICAS DE VALIDAÇÃO DA RECEITA (AZIX) ---
+            st.write("---")
+            st.markdown("### 🏛️ Validação de Endereço na Receita (Azix)")
+        
+            if not df_azix_data.empty and 'Validacao_Receita' in df_azix_data.columns:
+                # Puxamos os dados da coluna e limpamos espaços vazios
+                df_val = df_azix_data.copy()
+                df_val['Validacao_Receita'] = df_val['Validacao_Receita'].astype(str).str.strip()
+            
+                # 1. Quantos entram (Total na base do Azix)
+                total_entraram = len(df_val)
+            
+                # Matemática dos Status
+                aceitaram = len(df_val[df_val['Validacao_Receita'] == 'Cliente Aceitou'])
+                reprovaram = len(df_val[df_val['Validacao_Receita'] == 'Cliente Negou'])
+                aguardando = len(df_val[df_val['Validacao_Receita'] == 'Aguardando Cliente'])
+                sla_esgotado = len(df_val[df_val['Validacao_Receita'] == 'SLA Esgotado'])
+            
+                # 2. Quantos trataram (Soma de todos que já ganharam um status diferente de vazio/Não Tratado)
+                trataram_total = aceitaram + reprovaram + aguardando + sla_esgotado
+            
+                # Cards na tela
+                linha_1 = st.columns(3)
+                linha_1[0].metric("📥 Base Total (Entraram)", total_entraram)
+                linha_1[1].metric("⚙️ Já Tratados", trataram_total)
+                linha_1[2].metric("✅ Aceitaram", aceitaram)
+
+                # Segunda linha de indicadores
+                linha_2 = st.columns(3)
+
+                linha_2[0].metric("❌ Reprovaram", reprovaram)
+                linha_2[1].metric("⏳ Aguardando", aguardando)
+                linha_2[2].metric("⏰ SLA Esgotado", sla_esgotado)
+            
+                # Gráfico de Validação
+                if trataram_total > 0:
+                    dados_grafico_val = pd.DataFrame({
+                        'Status': ['Aceitou', 'Negou', 'Aguardando', 'SLA Esgotado'],
+                        'Quantidade': [aceitaram, reprovaram, aguardando, sla_esgotado]
+                    }).set_index('Status')
+                    st.bar_chart(dados_grafico_val, width="stretch", color="#d97706")
+            else:
+                st.info("Aguardando as primeiras validações da equipa ou a coluna 'Validacao_Receita' ainda não foi lida na base.")
+
+            with st.expander("Informações do servidor"):
+                st.caption("Monitor local desativado. Acompanhe a saúde pelos logs do Streamlit Cloud.")
+
+        elif secao_gestao == "Importar bases":
+            # --- ROBÔ IMPORTADOR ---
+            st.write("---")
+            st.subheader("Importar bases")
+            tipo_importacao = st.radio("Escolha a Base:", ["1. Qualitor (Substituição)", "2. Azix (Injeção Inteligente)"])
+        
+            with st.container(border=True, key="frg-import"):
+                arquivo_excel = st.file_uploader("Arraste o arquivo aqui (.xlsx ou .csv)", type=["xlsx", "xls", "csv"])
+                if arquivo_excel is not None:
+                    try:
+                        with st.spinner("Lendo..."):
+                            if arquivo_excel.name.endswith('.csv'): df_bruto = pd.read_csv(arquivo_excel, sep=None, engine='python', encoding='latin-1')
+                            else: df_bruto = pd.read_excel(arquivo_excel)
+                    
+                        if tipo_importacao == "1. Qualitor (Substituição)":
+                            if 'PROCESSO' in df_bruto.columns and 'Chamado' in df_bruto.columns:
+                                df_pronto, resumo_qualitor = preparar_importacao_qualitor(df_bruto)
+                            
+                                qtd_novos = len(df_pronto)
+                                qtd_prioridade = len(df_pronto[df_pronto['SLA'].str.contains("Prioridade")])
+                            
+                                st.success("✅ Análise Qualitor concluída!")
+                                st.info(
+                                    f"Lidos: {resumo_qualitor['lidos']} | "
+                                    f"Ignorados (Solicitante): {resumo_qualitor['ignorados_solicitante']} | "
+                                    f"Duplicados: {resumo_qualitor['duplicados']} | "
+                                    f"Prontos para importar: {resumo_qualitor['importados']}"
+                                )
+                                st.metric(ETAPA_AGING_QUALITOR, resumo_qualitor['aging_maior_20'])
+                                st.caption(
+                                    f"Destes, {resumo_qualitor['aging_prioritarios']} mantêm prioridade no SLA. "
+                                    f"Etapas preservadas: {resumo_qualitor['estornados']} Estornados e "
+                                    f"{resumo_qualitor['reembolso_mktp']} Reembolso MKTP. "
+                                    "O aging corresponde ao valor salvo na planilha enviada."
+                                )
+                                cc1, cc2 = st.columns(2)
+                                cc1.markdown(f"<div style='background-color: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;'><h3 style='margin:0; color:#0f172a;'>📦 {qtd_novos}</h3><p style='margin:0; color:#64748b;'>Chamados Identificados</p></div>", unsafe_allow_html=True)
+                            
+                                if 'Etapa' in df_pronto.columns:
+                                    top_etapas = df_pronto['Etapa'].value_counts().head(3)
+                                    txt_etapas = "<br>".join([f"<b>{k}:</b> {v}" for k, v in top_etapas.items()])
+                                    cc2.markdown(f"<div style='background-color: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;'><p style='margin:0; color:#64748b; font-size:0.9em;'>Top Assuntos:</p><div style='color:#0f172a;'>{txt_etapas}</div></div>", unsafe_allow_html=True)
+                            
+                                st.write("")
+                                if qtd_prioridade > 0:
+                                    st.error(f"🔥 ALERTA: Temos **{qtd_prioridade}** chamados com PRIORIDADE MÁXIMA (Vence Hoje) neste lote. Foco total!")
+
+                                with st.expander("Conferir classificação antes de substituir"):
+                                    st.dataframe(
+                                        df_pronto[['Dados', 'Etapa', 'Motivo_Original', 'Aging_Abertura', 'SLA']].head(50),
+                                        hide_index=True,
+                                        width="stretch",
+                                    )
+                                    st.caption("Prévia dos primeiros 50 chamados. A importação inclui todos os registros válidos.")
+                                if df_pronto.empty:
+                                    st.warning("Nenhum chamado válido para importar. A base atual será mantida.")
+                                st.caption("Substitua somente após a equipe encerrar os atendimentos da base atual.")
+                                if st.button("🚀 SUBSTITUIR BASE QUALITOR", type="primary", disabled=df_pronto.empty):
+                                    df_limpo = df_pronto.fillna("").replace(['nan', 'NaN', 'NaT', 'None'], "")
+                                    limpar_reservas_aba(aba_chamados)
+                                    aba_chamados.clear(); aba_chamados.append_rows([df_limpo.columns.tolist()] + df_limpo.values.tolist())
+                                    registrar_log(usuario, "Importou Base Qualitor")
+                                    st.success("Atualizado!"); invalidar_cache_base("qualitor"); st.rerun()
+                            else: st.error("Erro: Colunas 'Chamado' ou 'PROCESSO' ausentes na planilha.")
+                    
+                        else:
+                            if aba_azix is None: st.error("Aba 'Azix' não existe!"); st.stop()
+                            df_bruto = df_bruto.fillna("").astype(str).replace(['nan', 'NaN', 'NaT', 'None'], "")
+                        
+                            if not df_azix_data.empty and 'Nº Pedido venda' in df_azix_data.columns:
+                                existentes = df_azix_data['Nº Pedido venda'].astype(str).tolist()
+                                df_novos = df_bruto[~df_bruto['Nº Pedido venda'].astype(str).isin(existentes)].copy()
+                                is_merge = True
+                            else:
+                                df_novos = df_bruto.copy()
+                                is_merge = False
+                            
+                            qtd_total_lidos = len(df_bruto)
+                            qtd_novos = len(df_novos)
+                            qtd_existentes = qtd_total_lidos - qtd_novos
+                        
+                            st.success("✅ Análise Azix concluída!")
+                            st.info(f"📊 **Resumo da Importação:** Lidos: {qtd_total_lidos} | Já existiam na base (Ignorados): {qtd_existentes} | **NOVOS para Injetar: {qtd_novos}**")
+                        
+                            st.write("")
+                            if qtd_novos > 0 and st.button("🚀 ADICIONAR NOVOS PEDIDOS (AZIX)", type="primary"):
+                                df_novos['Status'] = "Pendente"
+                                df_novos['Responsavel'] = ""
+                                df_novos['Inicio'] = ""
+                                df_novos['Data_Conclusao'] = ""
+                                df_novos['Assentamentos'] = ""
+                                df_novos['Data_Entrada'] = data_hoje() 
+                            
+                                if is_merge:
+                                    cols_exist = df_azix_data.columns.tolist()
+                                    for c in cols_exist:
+                                        if c not in df_novos.columns: df_novos[c] = ""
+                                    df_novos = df_novos[cols_exist]
+                                    aba_azix.append_rows(df_novos.values.tolist())
+                                else:
+                                    aba_azix.clear(); aba_azix.append_rows([df_novos.columns.tolist()] + df_novos.values.tolist())
+                            
+                                registrar_log(usuario, f"Adicionou {len(df_novos)} Azix")
+                                st.success("Fila Azix atualizada!"); invalidar_cache_base("azix"); st.rerun()
+                    except Exception as e: st.error(f"Erro no robô: {e}")
+
+
+        elif secao_gestao == "Exportações":
+            # --- EXPORTAÇÃO COMPLETA COM FILTRO ---
+            st.write("---")
+            st.subheader("💾 Exportação de Bases e Auditoria")
+        
+            # Função para converter DataFrame em Excel em memória
+            import io
+            def df_para_excel(df_export):
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df_export.to_excel(writer, index=False, sheet_name='Sheet1')
+                return output.getvalue()
+
+            cexp1, cexp2, cexp3 = st.columns(3)
+        
+            with cexp1:
+                if not df_qualitor.empty:
+                    if st.button("🛠️ Preparar Qualitor", key="preparar_excel_q", width="stretch"):
+                        st.session_state["excel_q"] = df_para_excel(df_qualitor)
+                    if "excel_q" in st.session_state:
+                        st.download_button("📥 BAIXAR QUALITOR", data=st.session_state["excel_q"], file_name=f"Qualitor_{data_hoje().replace('/','-')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
+
+            with cexp2:
+                if not df_azix_data.empty:
+                    if st.button("🛠️ Preparar Azix/MKTP", key="preparar_excel_a", width="stretch"):
+                        st.session_state["excel_a"] = df_para_excel(df_azix_data)
+                    if "excel_a" in st.session_state:
+                        st.download_button("📥 BAIXAR AZIX/MKTP", data=st.session_state["excel_a"], file_name=f"Azix_{data_hoje().replace('/','-')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
+
+            with cexp3:
+                if not df_logs_periodo.empty:
+                    if st.button("🛠️ Preparar Logs", key="preparar_excel_logs", width="stretch"):
+                        df_logs_export = df_logs_periodo.drop(columns=['DataReal'])
+                        st.session_state["excel_logs"] = df_para_excel(df_logs_export)
+                    if "excel_logs" in st.session_state:
+                        nome_arquivo_logs = f"Logs_{data_inicio.strftime('%d%m')}_a_{data_fim.strftime('%d%m')}.xlsx"
+                        st.download_button("📥 BAIXAR LOGS", data=st.session_state["excel_logs"], file_name=nome_arquivo_logs, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
+                else:
+                    st.info("Sem logs para este período.")
+
+            # --- GERADOR DE RELATÓRIO EXECUTIVO (PDF) ---
+            st.write("---")
+            with st.expander("📄 Gerar Relatório Executivo Oficial (PDF)"):
+                aviso_pdf = st.text_input("Observação (Opcional):", placeholder="Ex: Operação Azix com volume alto...")
+                if st.button("🖨️ Mapear Dados e Criar PDF", width="stretch"):
+                    with st.spinner("Compilando dados em tempo real..."):
+                        def formatar_texto(texto): return unicodedata.normalize('NFKD', str(texto)).encode('ASCII', 'ignore').decode('ASCII')
+                    
+                        pdf = FPDF()
+                        pdf.add_page()
+                        pdf.set_font('Arial', 'B', 16); pdf.cell(0, 10, formatar_texto('Relatorio Executivo - Operacao SAC & Azix'), 0, 1, 'C')
+                        pdf.set_font('Arial', 'I', 10); pdf.cell(0, 10, formatar_texto(f'Gerado em: {hora_texto()}'), 0, 1, 'C'); pdf.ln(10)
+                    
+                        pdf.set_font('Arial', 'B', 12); pdf.cell(0, 10, formatar_texto('1. OPERACAO QUALITOR (TEMPO REAL)'), 0, 1)
+                        pdf.set_font('Arial', '', 12)
+                        pdf.cell(0, 10, formatar_texto(f'> Fila Atual: {pend_q} pendentes. (Criticos/Atrasados: {fora_sla_q})'), 0, 1)
+                        pdf.ln(5)
+                    
+                        pdf.set_font('Arial', 'B', 12); pdf.cell(0, 10, formatar_texto('2. OPERACAO AZIX / MARKETPLACE (TEMPO REAL)'), 0, 1)
+                        pdf.set_font('Arial', '', 12)
+                        pdf.cell(0, 10, formatar_texto(f'> Fila Atual: {pend_a} tratativas pendentes. (Criticas/Atrasadas: {fora_sla_a})'), 0, 1)
+                        pdf.ln(5)
+                    
+                        pdf.set_font('Arial', 'B', 12); pdf.cell(0, 10, formatar_texto(f'3. DESTAQUES DA EQUIPE ({data_inicio.strftime("%d/%m")} a {data_fim.strftime("%d/%m")})'), 0, 1)
+                        pdf.set_font('Arial', '', 12)
+                        if not ranking_periodo.empty:
+                            for i, row in ranking_periodo.head(3).iterrows(): pdf.cell(0, 10, formatar_texto(f"{i+1} Lugar: {row['Nome']} - {row['Qtd']} concluídos"), 0, 1)
+                        else: pdf.cell(0, 10, formatar_texto('Sem finalizacoes neste periodo.'), 0, 1)
+                        pdf.ln(5)
+                    
+                        if aviso_pdf:
+                            pdf.set_font('Arial', 'B', 12); pdf.cell(0, 10, formatar_texto('4. DIRETRIZ DA GESTAO'), 0, 1)
+                            pdf.set_font('Arial', 'I', 11); pdf.multi_cell(0, 10, formatar_texto(aviso_pdf))
+                        
+                        nome_arquivo = f"Relatorio_Operacional_{datetime.now().strftime('%d%m%Y')}.pdf"
+                        pdf.output(nome_arquivo, 'F')
+                        with open(nome_arquivo, "rb") as f: bytes_pdf = f.read()
+                        st.success("✅ PDF Gerado!")
+                        st.download_button(label="📥 BAIXAR RELATÓRIO PDF", data=bytes_pdf, file_name=nome_arquivo, mime="application/pdf", type="primary")
+            
+
+        elif secao_gestao == "Manutenção":
+            st.subheader("🧹 Limpeza e Ações de Emergência")
+            if st.button("🧹 APAGAR TODOS OS CONCLUÍDOS (AZIX)"):
+                if not df_azix_data.empty:
+                    df_ativos = df_azix_data[df_azix_data['Status'] != 'Concluido'].copy()
+                    limpar_reservas_aba(aba_azix)
+                    aba_azix.clear()
+                    aba_azix.append_rows([df_ativos.columns.tolist()] + df_ativos.values.tolist())
+                    st.success("Faxina feita!"); invalidar_cache_base("azix"); st.rerun()
+            if st.button(
+                "🔓 LIMPAR RESERVAS ANTIGAS DO AZIX",
+                key="limpar_reservas_antigas_azix"):
                 limpar_reservas_aba(aba_azix)
-                aba_azix.clear()
-                aba_azix.append_rows([df_ativos.columns.tolist()] + df_ativos.values.tolist())
-                st.success("Faxina feita!"); invalidar_cache_base("azix"); st.rerun()
-        if st.button(
-            "🔓 LIMPAR RESERVAS ANTIGAS DO AZIX",
-            key="limpar_reservas_antigas_azix"):
-            limpar_reservas_aba(aba_azix)
-            invalidar_cache_base("azix")
-            st.success("✅ Reservas antigas do Azix removidas!")
-            st.rerun()
+                invalidar_cache_base("azix")
+                st.success("✅ Reservas antigas do Azix removidas!")
+                st.rerun()
                 
-        em_andamento = df_qualitor[df_qualitor['Status'] == 'Em Andamento'].copy() if not df_qualitor.empty else pd.DataFrame()
-        if not em_andamento.empty:
-            opcoes = em_andamento.apply(lambda x: f"L{x.name + 2} - ID {x['ID']} - {x['Dados']} ({x['Responsavel']})", axis=1).tolist()
-            selecionado = st.selectbox("Selecione um chamado travado (Qualitor):", [""] + opcoes)
-            if selecionado:
-                linha_trava = int(selecionado.split(" - ")[0].replace("L", ""))
-                col_dev, col_forcar = st.columns(2)
-                if col_dev.button("↩️ Devolver à Fila"):
-                    aba_chamados.batch_update([
-                        {"range": rowcol_to_a1(linha_trava, COL_STATUS), "values": [["Pendente"]]},
-                        {"range": rowcol_to_a1(linha_trava, COL_RESP), "values": [[""]]},
-                        {"range": rowcol_to_a1(linha_trava, COL_INICIO), "values": [[""]]},
-                    ])
-                    liberar_reserva(aba_chamados, linha_trava)
-                    registrar_log(usuario, f"ADMIN: Devolveu linha {linha_trava}"); st.success("Devolvido!"); invalidar_cache_base("qualitor"); st.rerun()
-                if col_forcar.button("🏁 Forçar Conclusão"):
-                    aba_chamados.batch_update([
-                        {"range": rowcol_to_a1(linha_trava, COL_STATUS), "values": [["Concluido"]]},
-                        {"range": rowcol_to_a1(linha_trava, COL_FIM), "values": [[hora_texto()]]},
-                    ])
-                    liberar_reserva(aba_chamados, linha_trava)
-                    registrar_log(usuario, f"ADMIN: Forçou conclusão linha {linha_trava}"); st.success("Encerrado!"); invalidar_cache_base("qualitor"); st.rerun()
-                
+            em_andamento = df_qualitor[df_qualitor['Status'] == 'Em Andamento'].copy() if not df_qualitor.empty else pd.DataFrame()
+            if not em_andamento.empty:
+                opcoes = em_andamento.apply(lambda x: f"L{x.name + 2} - ID {x['ID']} - {x['Dados']} ({x['Responsavel']})", axis=1).tolist()
+                selecionado = st.selectbox("Selecione um chamado travado (Qualitor):", [""] + opcoes)
+                if selecionado:
+                    linha_trava = int(selecionado.split(" - ")[0].replace("L", ""))
+                    col_dev, col_forcar = st.columns(2)
+                    if col_dev.button("↩️ Devolver à Fila"):
+                        aba_chamados.batch_update([
+                            {"range": rowcol_to_a1(linha_trava, COL_STATUS), "values": [["Pendente"]]},
+                            {"range": rowcol_to_a1(linha_trava, COL_RESP), "values": [[""]]},
+                            {"range": rowcol_to_a1(linha_trava, COL_INICIO), "values": [[""]]},
+                        ])
+                        liberar_reserva(aba_chamados, linha_trava)
+                        registrar_log(usuario, f"ADMIN: Devolveu linha {linha_trava}"); st.success("Devolvido!"); invalidar_cache_base("qualitor"); st.rerun()
+                    if col_forcar.button("🏁 Forçar Conclusão"):
+                        aba_chamados.batch_update([
+                            {"range": rowcol_to_a1(linha_trava, COL_STATUS), "values": [["Concluido"]]},
+                            {"range": rowcol_to_a1(linha_trava, COL_FIM), "values": [[hora_texto()]]},
+                        ])
+                        liberar_reserva(aba_chamados, linha_trava)
+                        registrar_log(usuario, f"ADMIN: Forçou conclusão linha {linha_trava}"); st.success("Encerrado!"); invalidar_cache_base("qualitor"); st.rerun()
 
 
     # =========================================================================
     # 🧠 SQUAD 1: VISÃO DA CHARLENE (TRATATIVAS AZIX COM SLA E BUSCA ATIVA)
     # =========================================================================
     elif usuario in SQUAD_AZIX:
-        st.title("🛡️ Painel Azix - Tratativas")
         if status_real != "Disponivel": st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
         else:
             if df.empty or 'Status' not in df.columns:
@@ -1322,13 +1537,11 @@ else:
                     else: st.info(f"SLA: {sla_badge}")
                     
                     st.markdown("### 📋 Ficha Detalhada do Pedido")
-                    with st.container():
-                        st.markdown('<div style="background-color: #f8fafc; padding: 20px; border-radius: 10px; border-left: 5px solid #38bdf8;">', unsafe_allow_html=True)
+                    with st.container(border=True, key="frg-details-azix"):
                         for col in df.columns:
                             if col not in ['ID', 'Status', 'Responsavel', 'Inicio', 'Data_Conclusao', 'SLA', 'Peso_SLA', 'Assentamentos', 'Data_Entrada', 'Status_SLA', 'Validacao_Receita']:
                                 val = dados.get(col, '')
                                 if pd.notna(val) and str(val).strip() != '': st.markdown(f"**{col}:** {val}")
-                        st.markdown('</div><br>', unsafe_allow_html=True)
 
                     st.markdown("### 📝 Histórico (CRM)")
                     historico_atual = str(dados.get('Assentamentos', ''))
@@ -1414,32 +1627,32 @@ else:
                     fila_novos = df[(df['Status'] == 'Pendente') & (df['Responsavel'] == "")].copy()
                     fila_retornos = df[(df['Status'] == 'Pendente - Retorno') & (df['Responsavel'] == "")].copy()
                     
-                    st.markdown("### 🔍 Busca Ativa (Puxar Pedido Específico)")
-                    c_busca, c_btn = st.columns([3, 1])
-                    pedido_busca = c_busca.text_input("Nº do Pedido:", placeholder="Ex: MAGALU_123", label_visibility="collapsed")
-                    if c_btn.button("🔍 Buscar e Puxar", width="stretch"):
-                        if pedido_busca.strip():
-                            if 'Nº Pedido venda' in df.columns:
-                                fila_geral = df[(df['Status'].isin(['Pendente', 'Pendente - Retorno'])) & (df['Responsavel'] == "")]
-                                alvo = fila_geral[fila_geral['Nº Pedido venda'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
-                                if not alvo.empty:
-                                    item = alvo.iloc[0]; idx_linha = int(item.name) + 2
-                                    ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
-                                    if ok:
-                                        registrar_log(usuario, f"Busca Ativa: Pegou {pedido_busca}")
-                                        st.success("Encontrado! Puxando para sua tela..."); invalidar_cache_base("azix"); st.rerun()
-                                    else:
-                                        invalidar_cache_base("azix"); st.error(mensagem)
-                                else: st.error("Pedido não encontrado na fila livre, ou já está com outro operador.")
-                            else: st.error("Coluna 'Nº Pedido venda' não encontrada na base.")
-                        else: st.warning("Digite um número de pedido.")
-                    st.write("---")
+                    with st.form("frg-busca-azix", border=True):
+                        st.markdown("**Buscar pedido específico**")
+                        c_busca, c_btn = st.columns([4, 1.5], vertical_alignment="bottom")
+                        pedido_busca = c_busca.text_input("Nº do Pedido:", placeholder="Ex: MAGALU_123")
+                        if c_btn.form_submit_button("Buscar e puxar", width="stretch"):
+                            if pedido_busca.strip():
+                                if 'Nº Pedido venda' in df.columns:
+                                    fila_geral = df[(df['Status'].isin(['Pendente', 'Pendente - Retorno'])) & (df['Responsavel'] == "")]
+                                    alvo = fila_geral[fila_geral['Nº Pedido venda'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
+                                    if not alvo.empty:
+                                        item = alvo.iloc[0]; idx_linha = int(item.name) + 2
+                                        ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
+                                        if ok:
+                                            registrar_log(usuario, f"Busca Ativa: Pegou {pedido_busca}")
+                                            st.success("Encontrado! Puxando para sua tela..."); invalidar_cache_base("azix"); st.rerun()
+                                        else:
+                                            invalidar_cache_base("azix"); st.error(mensagem)
+                                    else: st.error("Pedido não encontrado na fila livre, ou já está com outro operador.")
+                                else: st.error("Coluna 'Nº Pedido venda' não encontrada na base.")
+                            else: st.warning("Digite um número de pedido.")
                     
                     # --- TABS PARA AS FILAS ---
-                    tab1, tab2 = st.tabs(["🆕 Fila de Novos", "⏳ Pendentes de Retorno"])
+                    tab1, tab2 = st.columns(2, gap="medium", border=True)
                     
                     with tab1:
-                        st.metric("📦 Fila Novos", len(fila_novos))
+                        renderizar_indicador("Novos pedidos", len(fila_novos), compacto=True)
                         if len(fila_novos) > 0:
                             if st.button("📥 PUXAR NOVO PEDIDO", type="primary", width="stretch", key="btn_novo"):
                                 item = fila_novos.iloc[0]
@@ -1454,7 +1667,7 @@ else:
                         else: st.info("Nenhum pedido novo. Clique em 'Atualizar Fila' para checar.")
                     
                     with tab2:
-                        st.metric("📦 Fila Retornos", len(fila_retornos))
+                        renderizar_indicador("Pendentes de retorno", len(fila_retornos), compacto=True)
                         if len(fila_retornos) > 0:
                             if st.button("📥 PUXAR RETORNO", type="primary", width="stretch", key="btn_retorno"):
                                 if 'ignorados_azix' not in st.session_state: st.session_state['ignorados_azix'] = []
@@ -1477,7 +1690,6 @@ else:
     # 🛒 SQUAD 2: VISÃO DOS OPERADORES DE REIVINDICAÇÕES MARKETPLACE
     # =========================================================================
     elif usuario in SQUAD_MKTP:
-        st.title("🛒 Painel de Reivindicações (Mktp)")
         if status_real != "Disponivel": st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
         else:
             if df.empty or 'Status' not in df.columns:
@@ -1493,13 +1705,11 @@ else:
                     st.success("🟢 TRATANDO REIVINDICAÇÃO...")
                     st.markdown(f"### 📦 Pedido: **{num_pedido}**")
                     
-                    with st.container():
-                        st.markdown('<div style="background-color: #fffbeb; padding: 20px; border-radius: 10px; border-left: 5px solid #f59e0b;">', unsafe_allow_html=True)
+                    with st.container(border=True, key="frg-details-mktp"):
                         for col in df.columns:
                             if col not in ['ID', 'Status', 'Responsavel', 'Inicio', 'Data_Conclusao', 'SLA', 'Peso_SLA', 'Assentamentos', 'Data_Entrada', 'Status_SLA']:
                                 val = dados.get(col, '')
                                 if pd.notna(val) and str(val).strip() != '': st.markdown(f"**{col}:** {val}")
-                        st.markdown('</div><br>', unsafe_allow_html=True)
 
                     st.markdown("### 📝 Histórico (CRM)")
                     historico_atual = str(dados.get('Assentamentos', ''))
@@ -1541,46 +1751,51 @@ else:
                             if palavra.strip(): filtro = filtro | fila[col_busca].astype(str).str.contains(palavra.strip(), case=False, na=False)
                         fila = fila[filtro]
                     
-                    st.markdown("### 🔍 Busca Ativa (Puxar Pedido Específico)")
-                    c_busca, c_btn = st.columns([3, 1])
-                    pedido_busca = c_busca.text_input("Nº do Pedido:", placeholder="Ex: MAGALU_123", label_visibility="collapsed")
-                    if c_btn.button("🔍 Buscar e Puxar", width="stretch"):
-                        if pedido_busca.strip():
-                            if 'Nº Pedido venda' in fila.columns:
-                                alvo = fila[fila['Nº Pedido venda'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
-                                if not alvo.empty:
-                                    item = alvo.iloc[0]; idx_linha = int(item.name) + 2
+                    with st.form("frg-busca-mktp", border=True):
+                        st.markdown("**Buscar pedido específico**")
+                        c_busca, c_btn = st.columns([4, 1.5], vertical_alignment="bottom")
+                        pedido_busca = c_busca.text_input("Nº do Pedido:", placeholder="Ex: MAGALU_123")
+                        if c_btn.form_submit_button("Buscar e puxar", width="stretch"):
+                            if pedido_busca.strip():
+                                if 'Nº Pedido venda' in fila.columns:
+                                    alvo = fila[fila['Nº Pedido venda'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
+                                    if not alvo.empty:
+                                        item = alvo.iloc[0]; idx_linha = int(item.name) + 2
+                                        ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Tratativa Mktp", COL_STATUS, COL_RESP, COL_INICIO)
+                                        if ok:
+                                            registrar_log(usuario, f"Busca Ativa Mktp: Pegou {pedido_busca}")
+                                            st.success("Encontrado! Puxando para sua tela..."); invalidar_cache_base("azix"); st.rerun()
+                                        else:
+                                            invalidar_cache_base("azix"); st.error(mensagem)
+                                    else: st.error("Pedido não encontrado na sua fila de reivindicações.")
+                                else: st.error("Coluna 'Nº Pedido venda' não encontrada na base.")
+                            else: st.warning("Digite um número de pedido.")
+
+                    area_fila, area_meta = st.columns([1.35, 1], gap="medium")
+                    with area_fila:
+                        with st.container(border=True, key="frg-queue-mktp"):
+                            renderizar_indicador("Sua fila", len(fila), "Pedidos disponíveis para atendimento", compacto=True)
+                            if st.button("🔄 Atualizar Fila"): invalidar_cache_base("azix"); st.rerun()
+                            if len(fila) > 0:
+                                if st.button("📥 REIVINDICAR PRÓXIMO", type="primary", width="content"):
+                                    item = fila.iloc[0]
+                                    idx_linha = int(item.name) + 2 
+                                    num_pedido = str(item.get('Nº Pedido venda', '')) # Puxa o número do pedido
                                     ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Tratativa Mktp", COL_STATUS, COL_RESP, COL_INICIO)
                                     if ok:
-                                        registrar_log(usuario, f"Busca Ativa Mktp: Pegou {pedido_busca}")
-                                        st.success("Encontrado! Puxando para sua tela..."); invalidar_cache_base("azix"); st.rerun()
+                                        registrar_log(usuario, f"Pegou Mktp ({num_pedido})")
+                                        invalidar_cache_base("azix"); st.rerun()
                                     else:
                                         invalidar_cache_base("azix"); st.error(mensagem)
-                                else: st.error("Pedido não encontrado na sua fila de reivindicações.")
-                            else: st.error("Coluna 'Nº Pedido venda' não encontrada na base.")
-                        else: st.warning("Digite um número de pedido.")
-                    st.write("---")
-
-                    st.metric("🚨 Reivindicações", len(fila))
-                    if st.button("🔄 Atualizar Fila"): invalidar_cache_base("azix"); st.rerun()
-                    if len(fila) > 0:
-                        if st.button("📥 REIVINDICAR PRÓXIMO", type="primary", width="stretch"):
-                            item = fila.iloc[0]
-                            idx_linha = int(item.name) + 2 
-                            num_pedido = str(item.get('Nº Pedido venda', '')) # Puxa o número do pedido
-                            ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Tratativa Mktp", COL_STATUS, COL_RESP, COL_INICIO)
-                            if ok:
-                                registrar_log(usuario, f"Pegou Mktp ({num_pedido})")
-                                invalidar_cache_base("azix"); st.rerun()
-                            else:
-                                invalidar_cache_base("azix"); st.error(mensagem)
-                    else:  st.info("Fila vazia. Clique em 'Atualizar Fila' para checar.")
+                            else:  st.info("Fila vazia. Clique em 'Atualizar Fila' para checar.")
+                    with area_meta:
+                        with st.container(border=True, key="frg-goal-mktp"):
+                            renderizar_meta(qtd_minha, META_DIARIA)
 
     # =========================================================================
     # 🎯 SQUAD NOVO: ATIVAS E REIVINDICAÇÕES (MARKETPLACE)
     # =========================================================================
     elif usuario in SQUAD_ATIVAS:
-        st.title("Marketplace")
         if status_real != "Disponivel": st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
         else:
             if df.empty or 'Status' not in df.columns:
@@ -1600,13 +1815,11 @@ else:
                     st.success(f"🟢 EM ATENDIMENTO ({tipo_atual}) - Prioridade {prio_atual}")
                     st.markdown(f"### 📦 Pedido / ID: **{num_pedido}**")
                     
-                    with st.container():
-                        st.markdown('<div style="background-color: #f8fafc; padding: 20px; border-radius: 10px; border-left: 5px solid #8b5cf6;">', unsafe_allow_html=True)
+                    with st.container(border=True, key="frg-details-ativas"):
                         for col in df.columns:
                             if col not in ['ID', 'Status', 'Responsavel', 'Inicio', 'Data_Conclusao', 'Assentamentos']:
                                 val = dados.get(col, '')
                                 if pd.notna(val) and str(val).strip() != '': st.markdown(f"**{col}:** {val}")
-                        st.markdown('</div><br>', unsafe_allow_html=True)
 
                     st.markdown("### 📝 Registrar Atendimento")
                     historico_atual = str(dados.get('Assentamentos', ''))
@@ -1654,23 +1867,29 @@ else:
                         fila['Prioridade_Num'] = pd.to_numeric(fila['Prioridade'], errors='coerce').fillna(999)
                         fila = fila.sort_values(by='Prioridade_Num', ascending=True)
 
-                    st.metric("🚨 Na Sua Fila", len(fila))
-                    if st.button("🔄 Atualizar Fila"): invalidar_cache_base("ativas"); st.rerun()
+                    area_fila, area_meta = st.columns([1.35, 1], gap="medium")
+                    with area_fila:
+                        with st.container(border=True, key="frg-queue-ativas"):
+                            renderizar_indicador("Sua fila", len(fila), "Pedidos disponíveis para atendimento", compacto=True)
+                            if st.button("🔄 Atualizar Fila"): invalidar_cache_base("ativas"); st.rerun()
                     
-                    if len(fila) > 0:
-                        if st.button("📥 PUXAR PRÓXIMO (PRIORIDADE)", type="primary", width="stretch"):
-                            item = fila.iloc[0] # Pega sempre o topo da lista (Prioridade 1)
-                            idx_linha = int(item.name) + 2 
-                            num_pedido = str(item.get('Pedido', ''))
-                            ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
-                            if ok:
-                                registrar_log(usuario, f"Pegou Ativa ({num_pedido})")
-                                invalidar_cache_base("ativas"); st.rerun()
+                            if len(fila) > 0:
+                                if st.button("📥 PUXAR PRÓXIMO (PRIORIDADE)", type="primary", width="content"):
+                                    item = fila.iloc[0] # Pega sempre o topo da lista (Prioridade 1)
+                                    idx_linha = int(item.name) + 2 
+                                    num_pedido = str(item.get('Pedido', ''))
+                                    ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
+                                    if ok:
+                                        registrar_log(usuario, f"Pegou Ativa ({num_pedido})")
+                                        invalidar_cache_base("ativas"); st.rerun()
+                                    else:
+                                        invalidar_cache_base("ativas"); st.error(mensagem)
                             else:
-                                invalidar_cache_base("ativas"); st.error(mensagem)
-                    else:
-                        st.success("Fila zerada para as suas habilidades!")
-                        st.info("Fila zerada. Clique em 'Atualizar Fila' para checar.")
+                                st.success("Fila zerada para as suas habilidades!")
+                                st.info("Fila zerada. Clique em 'Atualizar Fila' para checar.")
+                    with area_meta:
+                        with st.container(border=True, key="frg-goal-ativas"):
+                            renderizar_meta(qtd_minha, META_DIARIA)
 
     # =========================================================================
     # 👷 SQUAD 3: VISÃO PADRÃO (OPERADOR QUALITOR)
@@ -1678,7 +1897,6 @@ else:
     else:
         if status_real != "Disponivel": st.warning(f"⚠️ **VOCÊ ESTÁ EM PAUSA ({status_real})**")
         else:
-            st.success(f"🟢 ONLINE - {sub_saudacao}")
             
             if df.empty or 'Status' not in df.columns:
                 st.info("📭 A base de dados Qualitor está vazia. O Gestor precisa importar os dados.")
@@ -1691,14 +1909,20 @@ else:
                     num = dados.get('Dados', 'N/A') 
                     sla_atual = str(dados.get('SLA', 'Sem Info'))
                     
-                    if 'fora' in sla_atual.lower(): st.error(f"🔥 ALERTA DE SLA: {sla_atual}")
+                    if 'fora' in sla_atual.lower() or 'prioridade' in sla_atual.lower(): st.error(f"🔥 ALERTA DE SLA: {sla_atual}")
                     else: st.info(f"✅ Status do SLA: {sla_atual}")
 
                     st.markdown(f"### 📞 Chamado: **{num}** | Etapa: **{dados.get('Etapa', 'N/A')}**")
+                    # Campos opcionais: a base anterior continua funcionando até a nova importação.
+                    motivo_original = str(dados.get('Motivo_Original', '')).strip()
+                    aging_importado = pd.to_numeric(dados.get('Aging_Abertura', None), errors='coerce')
+                    if motivo_original:
+                        st.caption(f"Motivo original: {motivo_original}")
+                    if pd.notna(aging_importado) and np.isfinite(aging_importado):
+                        st.caption(f"Aging na importação: {aging_importado:g} dias úteis")
                     if str(num) != 'N/A': 
                         link_q = f"https://frigelar.qualitorsoftware.com/html/hd/hdchamado/cadastro_chamado.php?cdchamado={num}"
                         
-                        st.error("🛡️ **PRIORIDADE: Chamados com SLA vencendo hoje - Necessário avançar etapa)**")
                         st.markdown("<span style='font-size: 0.9em;'>Impossibilitado temporariamente via link direto</span>", unsafe_allow_html=True)
                         st.markdown("1️⃣ Clique no **ícone de copiar** no canto superior direito da caixa abaixo.<br>2️⃣ Pressione **Ctrl + T** (Nova Aba) e **Ctrl + V** (Colar).", unsafe_allow_html=True)
                         st.code(link_q, language="text")
@@ -1740,47 +1964,50 @@ else:
                     if "Todas" not in minhas_etapas and "todas" not in [e.lower() for e in minhas_etapas]:
                         fila = fila[fila['Etapa'].astype(str).isin(minhas_etapas)]
                     
-                    st.markdown("### 🔍 Busca Ativa (Puxar Chamado Específico)")
-                    c_busca, c_btn = st.columns([3, 1])
-                    pedido_busca = c_busca.text_input("Nº do Chamado:", placeholder="Ex: 384405", label_visibility="collapsed")
-                    if c_btn.button("🔍 Buscar e Puxar", width="stretch"):
-                        if pedido_busca.strip():
-                            alvo = fila[fila['Dados'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
-                            if not alvo.empty:
-                                item = alvo.iloc[0]; idx_linha = int(item.name) + 2
-                                ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
-                                if ok:
-                                    registrar_log(usuario, f"Busca Ativa Qualitor: Pegou {pedido_busca}")
-                                    st.success("Encontrado! Puxando para sua tela..."); invalidar_cache_base("qualitor"); st.rerun()
-                                else:
-                                    invalidar_cache_base("qualitor"); st.error(mensagem)
-                            else: st.error("Chamado não encontrado na fila permitida ou já em atendimento.")
-                        else: st.warning("Digite um número de chamado.")
-                    st.write("---")
-
                     qtd = len(fila)
-                    c_f, c_r = st.columns([3,1])
-                    c_f.metric("Sua Fila Qualitor", qtd)
-                    if c_r.button("🔄 Atualizar Fila"): invalidar_cache_base("qualitor"); st.rerun()
-                    
-                    if qtd > 0:
-                        # ✅ O ÚNICO E VERDADEIRO BOTÃO!
-                        if st.button("📥 PEGAR PRÓXIMO", type="primary", width="stretch"):
-                            if 'SLA' in fila.columns:
-                                fila['Peso_SLA'] = fila['SLA'].astype(str).apply(lambda x: 1 if 'fora' in x.lower() else 2)
-                                fila = fila.sort_values(by='Peso_SLA', kind='stable')
+                    area_fila, area_meta = st.columns([1.35, 1], gap="medium")
+                    with area_fila:
+                        with st.container(border=True, key="frg-queue-qualitor"):
+                            renderizar_indicador("Sua fila Qualitor", qtd, "Chamados disponíveis para suas etapas", compacto=True)
+                            if st.button("🔄 Atualizar Fila"): invalidar_cache_base("qualitor"); st.rerun()
+                            if qtd > 0:
+                                # ✅ O ÚNICO E VERDADEIRO BOTÃO!
+                                if st.button("📥 PEGAR PRÓXIMO", type="primary", width="content"):
+                                    if 'SLA' in fila.columns:
+                                        fila['Peso_SLA'] = fila['SLA'].astype(str).apply(lambda x: 1 if 'fora' in x.lower() else 2)
+                                        fila = fila.sort_values(by='Peso_SLA', kind='stable')
                                 
-                            item = fila.iloc[0]
-                            idx_linha = int(item.name) + 2 
-                            num_chamado = str(item.get('Dados', '')).replace('.0', '') # Puxa o número do chamado
-                            ok, mensagem = reservar_atendimento(aba_chamados, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
-                            if ok:
-                                registrar_log(usuario, f"Pegou chamado Qualitor ({num_chamado})")
-                                invalidar_cache_base("qualitor"); st.rerun()
-                            else:
-                                invalidar_cache_base("qualitor"); st.error(mensagem)
-                    else: 
-                        st.info("Nenhum chamado. Clique em 'Atualizar Fila' para checar.")
+                                    item = fila.iloc[0]
+                                    idx_linha = int(item.name) + 2 
+                                    num_chamado = str(item.get('Dados', '')).replace('.0', '') # Puxa o número do chamado
+                                    ok, mensagem = reservar_atendimento(aba_chamados, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
+                                    if ok:
+                                        registrar_log(usuario, f"Pegou chamado Qualitor ({num_chamado})")
+                                        invalidar_cache_base("qualitor"); st.rerun()
+                                    else:
+                                        invalidar_cache_base("qualitor"); st.error(mensagem)
+                            else: 
+                                st.info("Nenhum chamado. Clique em 'Atualizar Fila' para checar.")
+                    with area_meta:
+                        with st.container(border=True, key="frg-goal-qualitor"):
+                            renderizar_meta(qtd_minha, META_DIARIA)
+                    with st.form("frg-busca-qualitor", border=True):
+                        st.markdown("**Buscar chamado específico**")
+                        c_busca, c_btn = st.columns([4, 1.5], vertical_alignment="bottom")
+                        pedido_busca = c_busca.text_input("Nº do Chamado:", placeholder="Ex: 384405")
+                        if c_btn.form_submit_button("Buscar e puxar", width="stretch"):
+                            if pedido_busca.strip():
+                                alvo = fila[fila['Dados'].astype(str).str.contains(pedido_busca.strip(), case=False, na=False)]
+                                if not alvo.empty:
+                                    item = alvo.iloc[0]; idx_linha = int(item.name) + 2
+                                    ok, mensagem = reservar_atendimento(aba_atual, idx_linha, usuario, "Em Andamento", COL_STATUS, COL_RESP, COL_INICIO)
+                                    if ok:
+                                        registrar_log(usuario, f"Busca Ativa Qualitor: Pegou {pedido_busca}")
+                                        st.success("Encontrado! Puxando para sua tela..."); invalidar_cache_base("qualitor"); st.rerun()
+                                    else:
+                                        invalidar_cache_base("qualitor"); st.error(mensagem)
+                                else: st.error("Chamado não encontrado na fila permitida ou já em atendimento.")
+                            else: st.warning("Digite um número de chamado.")
 
                         # --- HISTÓRICO DE CHAMADOS (QUALITOR) ---
             # --- HISTÓRICO DE CHAMADOS (QUALITOR) ---
@@ -1809,7 +2036,7 @@ else:
     # 🧙‍♂️ GAVETA DO ORÁCULO E TRANSPORTADORAS (PARA TODOS)
     # ===================================================
     if usuario != "TV" and not modo_gerente:
-        st.write("---")
+        st.subheader("Apoio durante o atendimento")
         with st.expander("🧙‍♂️ Oráculo Frigelar"):
             pergunta = st.text_input("O que você precisa saber?")
             if st.button("✨ Perguntar"):
@@ -1821,8 +2048,7 @@ else:
                     except Exception as e: st.error(f"Erro: {e}")
                 else: st.error(f"IA não configurada.")
                 
-        st.write("---")
-        with st.expander("🚚 Agenda de Contatos - Transportadoras"):
+        with st.expander("🚚 Contatos de transportadoras"):
             df_transp = carregar_agenda_transp()
             if not df_transp.empty and 'Transportadora' in df_transp.columns:
                 lista_t = [str(t) for t in df_transp['Transportadora'].dropna().unique() if str(t).strip() != '']
@@ -1837,3 +2063,4 @@ else:
                         st.caption("E-mail Logística (Clique para copiar):")
                         st.code(dados_t.get('Email_Logistica', 'Não cadastrado'), language="text")
             else: st.info("Aba 'Transportadoras' não encontrada ou vazia.")
+
