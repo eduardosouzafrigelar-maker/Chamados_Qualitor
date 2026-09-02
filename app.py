@@ -534,9 +534,9 @@ if 'tema_escolhido' not in st.session_state: st.session_state['tema_escolhido'] 
 def aplicar_visual_frigelar(tema="Padrão"):
     paletas = {
         "Padrão": ("#f3f6fb", "#ffffff", "#172d49", "#576b82", "#dce5ef", "#075bb6", "#eaf2fc"),
-        "Dark Night": ("#0f1927", "#19293c", "#edf3fb", "#b5c4d7", "#34465d", "#3281df", "#243d5d"),
-        "Hacker Matrix": ("#0a1710", "#10281b", "#d8f5df", "#add2b9", "#315842", "#168347", "#19442b"),
-        "Rosa Fofo": ("#fff4f8", "#ffffff", "#51263c", "#825c70", "#ecd6e1", "#b22f70", "#fce4ef"),
+        "Escuro": ("#0f1927", "#19293c", "#edf3fb", "#b5c4d7", "#34465d", "#3281df", "#243d5d"),
+        "Matrix": ("#0a1710", "#10281b", "#d8f5df", "#add2b9", "#315842", "#168347", "#19442b"),
+        "Rosa": ("#fff4f8", "#ffffff", "#51263c", "#825c70", "#ecd6e1", "#b22f70", "#fce4ef"),
     }
     fundo, painel, texto, suave, borda, azul, destaque = paletas.get(tema, paletas["Padrão"])
     css = """
