@@ -660,7 +660,7 @@ def renderizar_meta(qtd, meta):
         f'<div class="frg-progress" role="progressbar" aria-label="Meta diária" '
         f'aria-valuemin="0" aria-valuemax="{meta}" aria-valuenow="{min(qtd, meta)}">'
         f'<div class="frg-progress-fill" style="width:{percentual * 100:.1f}%"></div></div>'
-        f'<div class="frg-progress-note">{percentual:.0%} da meta diária</div>', unsafe_allow_html=True,
+        f'<div class="frg-progress-note">{percentual:.0%} do objetivo</div>', unsafe_allow_html=True,
     )
 
 
